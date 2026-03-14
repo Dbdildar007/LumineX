@@ -1,70 +1,89 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
-import { supabase, authHelpers, profileHelpers } from "../lib/supabase";
+import { supabase, authAPI, profileAPI, notifAPI } from "../lib/supabase";
 
-const AppContext = createContext(null);
+const Ctx = createContext(null);
 
 export function AppProvider({ children }) {
-  const [session,    setSession]    = useState(null);
-  const [profile,    setProfile]    = useState(null);
-  const [authReady,  setAuthReady]  = useState(false);
-  const [player,     setPlayer]     = useState(null);
-  const [search,     setSearch]     = useState(false);
-  const [toast,      setToast]      = useState(null);
-  const [tab,        setTab]        = useState("home");
-  const [authModal,  setAuthModal]  = useState(null);
-  const [vipModal,   setVipModal]   = useState(false);
-  const [uploadModal,setUploadModal]= useState(false);
+  const [session,      setSession]      = useState(null);
+  const [profile,      setProfile]      = useState(null);
+  const [authReady,    setAuthReady]    = useState(false);
+  const [player,       setPlayer]       = useState(null);
+  const [search,       setSearch]       = useState(false);
+  const [toast,        setToast]        = useState(null);
+  const [tab,          setTab]          = useState("home");
+  const [authModal,    setAuthModal]    = useState(null);
+  const [vipModal,     setVipModal]     = useState(false);
+  const [uploadModal,  setUploadModal]  = useState(false);
+  const [notifOpen,    setNotifOpen]    = useState(false);
+  const [notifCount,   setNotifCount]   = useState(0);
+  const [theme,        setThemeState]   = useState(() => localStorage.getItem("lx_theme") || "dark");
   const toastTimer = useRef(null);
 
-  // ── Auth init ────────────────────────────────────────────────────────────────
+  // Apply theme to document
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "light") root.classList.add("light");
+    else root.classList.remove("light");
+    localStorage.setItem("lx_theme", theme);
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    document.documentElement.classList.add("theme-transition");
+    setThemeState(t => t === "dark" ? "light" : "dark");
+    setTimeout(() => document.documentElement.classList.remove("theme-transition"), 400);
+  }, []);
+
+  // Auth init
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) loadProfile(session.user.id);
       else setAuthReady(true);
     });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setSession(session);
       if (session) loadProfile(session.user.id);
-      else { setProfile(null); setAuthReady(true); }
+      else { setProfile(null); setAuthReady(true); setNotifCount(0); }
     });
     return () => subscription.unsubscribe();
   }, []);
 
+  // Notification subscription
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    notifAPI.getUnreadCount(session.user.id).then(setNotifCount).catch(() => {});
+    const sub = notifAPI.subscribe(session.user.id, () => {
+      setNotifCount(c => c + 1);
+    });
+    return () => sub?.unsubscribe();
+  }, [session?.user?.id]);
+
   const loadProfile = async (id) => {
     try {
-      const p = await profileHelpers.getById(id);
+      const p = await profileAPI.getById(id);
       setProfile(p);
     } catch (e) {
-      console.error("Profile load error:", e);
+      console.error("Profile load:", e);
     } finally {
       setAuthReady(true);
     }
   };
 
-  // ── Toast ────────────────────────────────────────────────────────────────────
-  const showToast = useCallback((msg, type = "info") => {
+  const showToast = useCallback((msg, type="info") => {
     clearTimeout(toastTimer.current);
-    setToast({ msg, type });
+    setToast({ msg, type, id: Date.now() });
     toastTimer.current = setTimeout(() => setToast(null), 2800);
   }, []);
 
-  // ── Play video ───────────────────────────────────────────────────────────────
   const playVideo = useCallback((video) => {
-    if (video.is_vip && !profile?.is_vip) {
-      setVipModal(true);
-      return;
-    }
+    if (video.is_vip && !profile?.is_vip) { setVipModal(true); return; }
     setPlayer(video);
   }, [profile]);
 
-  // ── Auth helpers ─────────────────────────────────────────────────────────────
   const signOut = useCallback(async () => {
-    await authHelpers.signOut();
-    setSession(null);
-    setProfile(null);
-    showToast("Signed out successfully", "success");
+    await authAPI.signOut();
+    setSession(null); setProfile(null); setNotifCount(0);
+    showToast("Signed out", "success");
   }, [showToast]);
 
   const refreshProfile = useCallback(() => {
@@ -72,16 +91,23 @@ export function AppProvider({ children }) {
   }, [session]);
 
   return (
-    <AppContext.Provider value={{
-      session, profile, authReady, player, setPlayer,
-      search, setSearch, toast, showToast, tab, setTab,
-      authModal, setAuthModal, vipModal, setVipModal,
+    <Ctx.Provider value={{
+      session, profile, authReady,
+      player, setPlayer, playVideo,
+      search, setSearch,
+      toast, showToast,
+      tab, setTab,
+      authModal, setAuthModal,
+      vipModal, setVipModal,
       uploadModal, setUploadModal,
-      playVideo, signOut, refreshProfile, loadProfile,
+      notifOpen, setNotifOpen,
+      notifCount, setNotifCount,
+      theme, toggleTheme,
+      signOut, refreshProfile, loadProfile,
     }}>
       {children}
-    </AppContext.Provider>
+    </Ctx.Provider>
   );
 }
 
-export const useApp = () => useContext(AppContext);
+export const useApp = () => useContext(Ctx);
