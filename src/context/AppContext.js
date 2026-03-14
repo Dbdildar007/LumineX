@@ -1,66 +1,83 @@
-import { createContext, useContext, useState, useCallback, useRef } from "react";
-import useLocalStorage from "../hooks/useLocalStorage";
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import { supabase, authHelpers, profileHelpers } from "../lib/supabase";
 
 const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
-  const [tab,       setTab]       = useState("home");
-  const [player,    setPlayer]    = useState(null);
-  const [catFilter, setCatFilter] = useState(null);
-  const [search,    setSearch]    = useState(false);
-  const [toast,     setToast]     = useState("");
-  const [authPage,  setAuthPage]  = useState(null);
-  const [loadMore,  setLoadMore]  = useState(12);
-  const [filter,    setFilter]    = useState("all");
-  const [ageOk,     setAgeOk]     = useState(() => !!localStorage.getItem("novatube_age"));
-  const [authUser,  setAuthUser]  = useState(() => {
-    try { return JSON.parse(localStorage.getItem("novatube_user")) || null; }
-    catch { return null; }
-  });
-
-  const [favs,      setFavs]      = useLocalStorage("novatube_favs", []);
-  const [history,   setHistory]   = useLocalStorage("novatube_history", []);
-  const [following, setFollowing] = useLocalStorage("novatube_following", []);
-
+  const [session,    setSession]    = useState(null);
+  const [profile,    setProfile]    = useState(null);
+  const [authReady,  setAuthReady]  = useState(false);
+  const [player,     setPlayer]     = useState(null);
+  const [search,     setSearch]     = useState(false);
+  const [toast,      setToast]      = useState(null);
+  const [tab,        setTab]        = useState("home");
+  const [authModal,  setAuthModal]  = useState(null);
+  const [vipModal,   setVipModal]   = useState(false);
+  const [uploadModal,setUploadModal]= useState(false);
   const toastTimer = useRef(null);
 
-  const showToast = useCallback((msg) => {
-    setToast(msg);
+  // ── Auth init ────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) loadProfile(session.user.id);
+      else setAuthReady(true);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setSession(session);
+      if (session) loadProfile(session.user.id);
+      else { setProfile(null); setAuthReady(true); }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const loadProfile = async (id) => {
+    try {
+      const p = await profileHelpers.getById(id);
+      setProfile(p);
+    } catch (e) {
+      console.error("Profile load error:", e);
+    } finally {
+      setAuthReady(true);
+    }
+  };
+
+  // ── Toast ────────────────────────────────────────────────────────────────────
+  const showToast = useCallback((msg, type = "info") => {
     clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(""), 2600);
+    setToast({ msg, type });
+    toastTimer.current = setTimeout(() => setToast(null), 2800);
   }, []);
 
-  const toggleFav = useCallback((id) => {
-    setFavs(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
-  }, [setFavs]);
+  // ── Play video ───────────────────────────────────────────────────────────────
+  const playVideo = useCallback((video) => {
+    if (video.is_vip && !profile?.is_vip) {
+      setVipModal(true);
+      return;
+    }
+    setPlayer(video);
+  }, [profile]);
 
-  const toggleFollow = useCallback((ch) => {
-    setFollowing(p => p.includes(ch) ? p.filter(x => x !== ch) : [...p, ch]);
-  }, [setFollowing]);
-
-  const playVideo = useCallback((v) => {
-    setPlayer(v);
-    setHistory(p => [v.id, ...p.filter(x => x !== v.id)].slice(0, 50));
-  }, [setHistory]);
-
-  const login = useCallback((user) => {
-    setAuthUser(user);
-    localStorage.setItem("novatube_user", JSON.stringify(user));
-  }, []);
-
-  const logout = useCallback(() => {
-    setAuthUser(null);
-    localStorage.removeItem("novatube_user");
-    showToast("👋 Logged out");
+  // ── Auth helpers ─────────────────────────────────────────────────────────────
+  const signOut = useCallback(async () => {
+    await authHelpers.signOut();
+    setSession(null);
+    setProfile(null);
+    showToast("Signed out successfully", "success");
   }, [showToast]);
+
+  const refreshProfile = useCallback(() => {
+    if (session?.user?.id) loadProfile(session.user.id);
+  }, [session]);
 
   return (
     <AppContext.Provider value={{
-      tab, setTab, player, setPlayer, catFilter, setCatFilter,
-      search, setSearch, toast, showToast, authPage, setAuthPage,
-      loadMore, setLoadMore, filter, setFilter, ageOk, setAgeOk,
-      authUser, login, logout, favs, toggleFav, history, setHistory,
-      following, toggleFollow, playVideo,
+      session, profile, authReady, player, setPlayer,
+      search, setSearch, toast, showToast, tab, setTab,
+      authModal, setAuthModal, vipModal, setVipModal,
+      uploadModal, setUploadModal,
+      playVideo, signOut, refreshProfile, loadProfile,
     }}>
       {children}
     </AppContext.Provider>
