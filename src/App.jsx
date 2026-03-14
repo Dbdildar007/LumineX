@@ -1,91 +1,110 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { AppProvider, useApp } from "./context/AppContext";
-import { ALL_VIDEOS } from "./data/videos";
-import { G } from "./data/theme";
-
-import AgeGate      from "./pages/AgeGate";
-import AuthPages    from "./pages/auth/AuthPages";
-import Header       from "./components/Header";
-import NavTabs      from "./components/NavTabs";
-import HomePage     from "./pages/HomePage";
+import { useIsMobile } from "./hooks";
+import { Toast } from "./components/ui";
+import Header         from "./components/layout/Header";
+import NavTabs        from "./components/layout/NavTabs";
+import PlayerModal    from "./components/player/PlayerModal";
+import AuthModal      from "./components/auth/AuthModal";
+import SearchModal    from "./components/SearchModal";
+import VipModal       from "./components/VipModal";
+import UploadModal    from "./components/upload/UploadModal";
+import ProfilePage    from "./components/profile/ProfilePage";
+import SplashScreen   from "./pages/SplashScreen";
+import AgeGate        from "./pages/AgeGate";
+import HomePage       from "./pages/HomePage";
 import CategoriesPage from "./pages/CategoriesPage";
-import ChannelsPage from "./pages/ChannelsPage";
-import VIPPage      from "./pages/VIPPage";
-import PlayerModal  from "./components/player/PlayerModal";
-import SearchModal  from "./components/SearchModal";
-import Toast        from "./components/ui/Toast";
+import ChannelsPage   from "./pages/ChannelsPage";
+import VIPPage        from "./pages/VIPPage";
 
+// ── Inner App (inside AppProvider) ───────────────────────────────────────────
 function AppInner() {
   const {
-    tab, player, setPlayer, search, setSearch, toast,
-    ageOk, setAgeOk, authPage, setAuthPage, login,
-    showToast, favs, toggleFav, playVideo,
+    tab, setTab, player, setPlayer,
+    toast, showToast, authReady,
+    ageOk, setAgeOk,          // we'll manage these locally
   } = useApp();
 
-  const [showBack, setShowBack] = useState(false);
+  const isMobile = useIsMobile();
+  const [splash,  setSplash]  = useState(() => !sessionStorage.getItem("lx_splash"));
+  const [ageOkL,  setAgeOkL]  = useState(() => !!localStorage.getItem("lx_age"));
+  const [showBack,setShowBack]= useState(false);
 
   useEffect(() => {
-    const h = () => setShowBack(window.scrollY > 500);
-    window.addEventListener("scroll", h);
+    const h = () => setShowBack(window.scrollY > 400);
+    window.addEventListener("scroll", h, { passive: true });
     return () => window.removeEventListener("scroll", h);
   }, []);
 
-  // Age gate
-  if (!ageOk) return (
-    <AgeGate onEnter={() => { localStorage.setItem("novatube_age","1"); setAgeOk(true); }} />
-  );
+  // Parse tab for special routes
+  const profileUserId = tab.startsWith("profile:") ? tab.slice(8) : null;
+  const catFilter     = tab.startsWith("cat:") ? tab.slice(4) : null;
 
-  // Auth pages
-  if (authPage) return (
-    <AuthPages
-      page={authPage}
-      onNavigate={setAuthPage}
-      onSuccess={user => { login(user); setAuthPage(null); showToast("✓ Welcome, " + user.name + "!"); }}
-      onClose={() => setAuthPage(null)}
-    />
-  );
+  const mainTabs = ["home","trending","new","saved","history","categories","channels","vip"];
+  const isMainTab = mainTabs.includes(tab) || !!catFilter;
+
+  // Splash screen — shown once per session
+  if (splash) {
+    return <SplashScreen onDone={() => { setSplash(false); sessionStorage.setItem("lx_splash","1"); }}/>;
+  }
+
+  // Age gate
+  if (!ageOkL) {
+    return <AgeGate onEnter={() => { localStorage.setItem("lx_age","1"); setAgeOkL(true); }}/>;
+  }
 
   return (
-    <div style={{ background:G.bg, color:G.text, fontFamily:"'Outfit',sans-serif", minHeight:"100vh" }}>
-      <Header />
-      <NavTabs />
+    <div style={{ background:"#030308", color:"#f0f0f8", fontFamily:"'DM Sans',sans-serif", minHeight:"100vh" }}>
+
+      <Header/>
+      <NavTabs/>
 
       {/* Main content */}
-      <main style={{ maxWidth:1600, margin:"0 auto", padding:"20px 16px 80px" }}>
-        {tab === "vip"        && <VIPPage />}
-        {tab === "categories" && <CategoriesPage />}
-        {tab === "channels"   && <ChannelsPage />}
-        {!["vip","categories","channels"].includes(tab) && <HomePage />}
+      <main style={{
+        maxWidth: 1400, margin: "0 auto",
+        padding: isMobile ? "12px 12px 80px" : "24px 24px 40px",
+      }}>
+        {/* Profile page */}
+        {profileUserId && <ProfilePage userId={profileUserId}/>}
+
+        {/* Category filter */}
+        {catFilter && <HomePage tab="home"/>}
+
+        {/* Standard tabs */}
+        {!profileUserId && !catFilter && (
+          <>
+            {(tab==="home"||tab==="trending"||tab==="new"||tab==="saved"||tab==="history") && <HomePage tab={tab}/>}
+            {tab==="categories" && <CategoriesPage/>}
+            {tab==="channels"   && <ChannelsPage/>}
+            {tab==="vip"        && <VIPPage/>}
+          </>
+        )}
       </main>
 
-      {/* Player modal */}
+      {/* Modals */}
       {player && (
         <PlayerModal
           video={player}
-          related={ALL_VIDEOS.filter(v => v.id !== player.id).slice(0, 12)}
           onClose={() => setPlayer(null)}
-          onPlayRelated={playVideo}
-          onToggleFav={toggleFav}
-          isFav={favs.includes(player.id)}
-          onToast={showToast}
         />
       )}
-
-      {/* Search modal */}
-      {search && <SearchModal onClose={() => setSearch(false)} onPlay={playVideo} />}
+      <AuthModal/>
+      <SearchModal/>
+      <VipModal/>
+      <UploadModal/>
 
       {/* Toast */}
-      <Toast msg={toast} />
+      <Toast toast={toast}/>
 
       {/* Back to top */}
       {showBack && (
-        <button onClick={() => window.scrollTo({ top:0, behavior:"smooth" })} style={{
-          position:"fixed", bottom:28, right:16,
+        <button onClick={() => window.scrollTo({top:0,behavior:"smooth"})} style={{
+          position:"fixed", bottom: isMobile ? 70 : 28, right: 16,
           width:42, height:42, borderRadius:"50%",
-          background:`linear-gradient(135deg,${G.accent},${G.accent2})`,
-          border:"none", color:"white", fontSize:20, cursor:"pointer",
+          background:`linear-gradient(135deg,#c084fc,#818cf8)`,
+          border:"none", color:"white", fontSize:18, cursor:"pointer",
           display:"flex", alignItems:"center", justifyContent:"center",
-          boxShadow:`0 0 24px ${G.accent}66`, zIndex:500,
+          boxShadow:"0 0 24px rgba(192,132,252,.5)", zIndex:500,
           animation:"float 3s ease-in-out infinite",
         }}>↑</button>
       )}
@@ -93,10 +112,11 @@ function AppInner() {
   );
 }
 
+// ── Root App ─────────────────────────────────────────────────────────────────
 export default function App() {
   return (
     <AppProvider>
-      <AppInner />
+      <AppInner/>
     </AppProvider>
   );
 }
