@@ -17,13 +17,20 @@ import HomePage from "./pages/HomePage";
 import CategoriesPage from "./pages/CategoriesPage";
 import ChannelsPage from "./pages/ChannelsPage";
 import VIPPage from "./pages/VIPPage";
+import Footer from "./components/layout/Footer";
+import { useLocation } from "react-router-dom";
 
 function AppInner() {
   const { tab, player, setPlayer, toast, theme } = useApp();
   const isMobile = useIsMobile();
-  const [splash,  setSplash]  = useState(() => !sessionStorage.getItem("lx_splash"));
-  const [ageOk,   setAgeOk]   = useState(() => !!localStorage.getItem("lx_age"));
+  const [splash, setSplash] = useState(() => !sessionStorage.getItem("lx_splash"));
+  const [ageOk, setAgeOk] = useState(() => !!localStorage.getItem("lx_age"));
   const [showTop, setShowTop] = useState(false);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [tab]);
+
 
   useEffect(() => {
     const h = () => setShowTop(window.scrollY > 400);
@@ -31,41 +38,69 @@ function AppInner() {
     return () => window.removeEventListener("scroll", h);
   }, []);
 
-  if (splash) return <SplashScreen onDone={() => { setSplash(false); sessionStorage.setItem("lx_splash", "1"); }}/>;
-  if (!ageOk)  return <AgeGate onEnter={() => { localStorage.setItem("lx_age", "1"); setAgeOk(true); }}/>;
+  if (splash) return <SplashScreen onDone={() => { setSplash(false); sessionStorage.setItem("lx_splash", "1"); }} />;
+  if (!ageOk) return <AgeGate onEnter={() => { localStorage.setItem("lx_age", "1"); setAgeOk(true); }} />;
 
-  // Parse special tab patterns
-  const profileMatch = tab.startsWith("profile:") ? tab.slice(8) : null;
-  const catMatch = tab.startsWith("cat:") ? tab.slice(4) : null;
+  // 1. Check if it's the new Object format
+  const isProfileObj = typeof tab === 'object' && tab?.type === 'profile';
+  const profileMatch = (typeof tab === 'string' && tab.startsWith("profile:")) ? tab.slice(8) : null;
+  const effectiveUserId = isProfileObj ? tab.id : profileMatch;
+  const profileData = isProfileObj ? tab.data : null;
 
-  const mainTabs = ["home","trending","new","saved","history","categories","channels","vip"];
+  // 2. Category Logic (THIS IS THE MISSING PIECE)
+  const catMatch = (typeof tab === 'string' && tab.startsWith("cat:")) ? tab.slice(4) : null;
+
+  console.log("Effective User ID:", effectiveUserId);
+  console.log("Category Match:", catMatch);
+
+  console.log("Effective User ID:", effectiveUserId); // This should no longer be null
+
+
+  const mainTabs = ["home", "trending", "new", "saved", "history", "categories", "channels", "vip"];
 
   return (
-    <div style={{ background: "var(--bg)", color: "var(--text)", fontFamily: "'DM Sans',sans-serif", minHeight: "100vh" }}>
-      <Header/>
-      <NavTabs/>
+    <div style={{
+      background: "var(--bg)", color: "var(--text)", fontFamily: "'DM Sans',sans-serif",
+      display: "grid",
+      gridTemplateRows: "auto auto 1fr auto",
+      minHeight: "100vh",
+      width: "100%"
+    }}>
+      <Header />
+      <NavTabs />
 
-      <main style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "12px 12px 80px" : "24px 24px 40px" }}>
-        {profileMatch && <ProfilePage userId={profileMatch}/>}
-        {catMatch && !profileMatch && <HomePage tab="home"/>}
-        {!profileMatch && !catMatch && (
+      <main style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "12px 12px 80px" : "24px 24px 40px", flex: "1 0 auto", width: "100%" }}>
+        {effectiveUserId && (
+          <ProfilePage
+            userId={effectiveUserId}
+            passedData={profileData}
+          />
+        )}
+
+        {/* Only show other pages if we are NOT on a profile */}
+        {!effectiveUserId && (
           <>
-            {(tab === "home" || tab === "trending" || tab === "new" || tab === "saved" || tab === "history") && <HomePage tab={tab}/>}
-            {tab === "categories" && <CategoriesPage/>}
-            {tab === "channels"   && <ChannelsPage/>}
-            {tab === "vip"        && <VIPPage/>}
+            {catMatch && <HomePage tab="home" />}
+            {!catMatch && (
+              <>
+                {(tab === "home" || tab === "trending" || tab === "new" || tab === "saved" || tab === "history") && <HomePage tab={tab} />}
+                {tab === "categories" && <CategoriesPage />}
+                {tab === "channels" && <ChannelsPage />}
+                {tab === "vip" && <VIPPage />}
+              </>
+            )}
           </>
         )}
       </main>
 
       {/* All Modals */}
-      {player && <PlayerModal video={player} onClose={() => setPlayer(null)}/>}
-      <AuthModal/>
-      <SearchModal/>
-      <VipModal/>
-      <UploadModal/>
-      <NotifPanel/>
-      <Toast toast={toast}/>
+      {player && <PlayerModal video={player} onClose={() => setPlayer(null)} />}
+      <AuthModal />
+      <SearchModal />
+      <VipModal />
+      <UploadModal />
+      <NotifPanel />
+      <Toast toast={toast} />
 
       {/* Back to top */}
       {showTop && (
@@ -79,17 +114,18 @@ function AppInner() {
           animation: "float 3s ease-in-out infinite",
         }}>↑</button>
       )}
+      <Footer style={{ flexShrink: 0 }} />
     </div>
   );
 }
 
-const C_accent  = "var(--accent)";
+const C_accent = "var(--accent)";
 const C_accent2 = "var(--accent2)";
 
 export default function App() {
   return (
     <AppProvider>
-      <AppInner/>
+      <AppInner />
     </AppProvider>
   );
 }
