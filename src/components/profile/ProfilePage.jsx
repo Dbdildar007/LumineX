@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { C, Avatar, VerifiedBadge, VipBadge, Spinner, Btn, Input, Modal, fmtNum, timeAgo } from "../ui/index";
 import { useApp } from "../../context/AppContext";
 import { profileAPI, followAPI, videoAPI, vipAPI } from "../../lib/supabase";
@@ -6,41 +6,74 @@ import { useFollow, useIsMobile } from "../../hooks/index";
 import { AVATARS } from "../../data/theme";
 import VideoCard from "../VideoCard";
 
-export default function ProfilePage({ userId }) {
-  const { session, profile: myProfile, refreshProfile, showToast } = useApp();
+export default function ProfilePage({ userId, passedData }) {
+
+  console.log("DEBUG: ProfilePage is rendering with userId:", userId, 'data', passedData);
+
+  const { session, profile: myProfile, activeProfile, refreshProfile, showToast, setTab } = useApp();
   const isMobile = useIsMobile();
-  const [profile,   setProfile]   = useState(null);
-  const [videos,    setVideos]    = useState([]);
-  const [loading,   setLoading]   = useState(true);
+  const [profile, setProfile] = useState(passedData || null);
+  const [videos, setVideos] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("videos");
   const [followers, setFollowers] = useState([]);
   const [following, setFollowing] = useState([]);
   const [initFollowing, setInitFollowing] = useState(false);
-  const [editOpen,  setEditOpen]  = useState(false);
-  const [showFollow,setShowFollow]= useState(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [showFollow, setShowFollow] = useState(null);
 
-  const isOwn = session?.user?.id === userId;
+
+  // Determine if this is the logged-in user's own profile
+  const isOwn = session?.user?.id === userId || (myProfile && myProfile.username === userId);
+
+
+
   const { following: isFollowing, toggle: toggleFollow, loading: followLoading } = useFollow(userId, initFollowing, profile, setProfile);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [p, v] = await Promise.all([profileAPI.getById(userId), videoAPI.getFeed({ userId, limit: 24 })]);
-      setProfile(p); setVideos(v || []);
-      if (session && !isOwn) setInitFollowing(await followAPI.isFollowing(session.user.id, userId).catch(() => false));
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
-  }, [userId, session, isOwn]);
+    // 3. Only show loading spinner if we don't even have passedData
+    if (!profile) setLoading(true);
 
-  useEffect(() => { load(); }, [load]);
+    try {
+      const [p, v] = await Promise.all([
+        profileAPI.getById(userId),
+        videoAPI.getFeed({ userId, limit: 24 })
+      ]);
+
+      setProfile(p);
+      setVideos(v || []);
+
+      if (session && !isOwn) {
+        const followingStatus = await followAPI.isFollowing(session.user.id, userId).catch(() => false);
+        setInitFollowing(followingStatus);
+      }
+    } catch (e) {
+      console.error("Error loading profile:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId, session, isOwn, profile]);
 
   useEffect(() => {
-    followAPI.getFollowers(userId).then(setFollowers).catch(() => {});
-    followAPI.getFollowing(userId).then(setFollowing).catch(() => {});
+    // 4. Update local state if props change (crucial for navigating between profiles)
+    if (passedData) {
+      setProfile(passedData);
+    } else if (isOwn && myProfile) {
+      setProfile(myProfile);
+    } else if (activeProfile && activeProfile.username === userId) {
+      setProfile(activeProfile);
+    }
+
+    load();
+  }, [userId, load, passedData, activeProfile, myProfile, isOwn]);
+
+  useEffect(() => {
+    followAPI.getFollowers(userId).then(setFollowers).catch(() => { });
+    followAPI.getFollowing(userId).then(setFollowing).catch(() => { });
   }, [userId]);
 
-  if (loading) return <div style={{ display: "flex", justifyContent: "center", padding: 80 }}><Spinner size={36}/></div>;
-  if (!profile) return <div style={{ textAlign: "center", padding: 80, color: C.muted }}><div style={{ fontSize: 48, marginBottom: 12 }}>👤</div><div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>User not found</div></div>;
+  if (loading && !profile) return <div style={{ display: "flex", justifyContent: "center", padding: 80 }}><Spinner size={36} /></div>;
+  if (!profile && !loading) return <div style={{ textAlign: "center", padding: 80, color: C.muted }}><div style={{ fontSize: 48, marginBottom: 12 }}>👤</div><div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>User not found</div></div>;
 
   const tabs = [
     { id: "videos", icon: "🎬", label: "Videos", count: profile.videos_count || 0 },
@@ -48,18 +81,18 @@ export default function ProfilePage({ userId }) {
   ];
 
   return (
-    <div style={{ maxWidth: 940, margin: "0 auto", padding: isMobile ? "0 0 80px" : "20px 0 40px" }}>
+    <div style={{ maxWidth: 940, position: "relative", margin: "0 auto", padding: isMobile ? "0 0 80px" : "20px 0 40px" }}>
       {/* Profile header */}
       <div style={{ background: `linear-gradient(135deg,${C.bg2},${C.bg3})`, borderRadius: isMobile ? 0 : 20, padding: isMobile ? "20px 16px" : "32px 36px", marginBottom: 24, position: "relative", overflow: "hidden", border: `1px solid ${C.border}` }}>
         <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
-          <div style={{ position: "absolute", top: -60, left: -60, width: 300, height: 300, borderRadius: "50%", background: `${C.accent}08`, filter: "blur(60px)" }}/>
-          <div style={{ position: "absolute", bottom: -40, right: -40, width: 200, height: 200, borderRadius: "50%", background: `${C.accent2}08`, filter: "blur(50px)" }}/>
+          <div style={{ position: "absolute", top: -60, left: -60, width: 300, height: 300, borderRadius: "50%", background: `${C.accent}08`, filter: "blur(60px)" }} />
+          <div style={{ position: "absolute", bottom: -40, right: -40, width: 200, height: 200, borderRadius: "50%", background: `${C.accent2}08`, filter: "blur(50px)" }} />
         </div>
         <div style={{ position: "relative", display: "flex", gap: isMobile ? 16 : 28, alignItems: "flex-start", flexWrap: isMobile ? "wrap" : "nowrap" }}>
           {/* Avatar */}
           <div style={{ position: "relative", flexShrink: 0 }}>
             <div style={{ width: isMobile ? 80 : 110, height: isMobile ? 80 : 110, borderRadius: "50%", padding: 3, background: `linear-gradient(135deg,${C.accent},${C.accent2},${C.accent3})` }}>
-              <Avatar profile={profile} size={isMobile ? 74 : 104}/>
+              <Avatar profile={profile} size={isMobile ? 74 : 104} />
             </div>
             {profile.is_vip && <div style={{ position: "absolute", bottom: 4, right: 4, background: "linear-gradient(135deg,#fbbf24,#f97316)", borderRadius: "50%", width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>👑</div>}
           </div>
@@ -67,8 +100,8 @@ export default function ProfilePage({ userId }) {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
               <h1 style={{ fontSize: isMobile ? 20 : 26, fontWeight: 900, fontFamily: "'Syne',sans-serif", margin: 0, color: C.text }}>{profile.display_name || profile.username}</h1>
-              {profile.is_verified && <VerifiedBadge size={18}/>}
-              {profile.is_vip && <VipBadge/>}
+              {profile.is_verified && <VerifiedBadge size={18} />}
+              {profile.is_vip && <VipBadge />}
             </div>
             <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>@{profile.username}</div>
             {profile.bio && <p style={{ fontSize: 14, color: C.textSub, lineHeight: 1.6, marginBottom: 16, maxWidth: 460 }}>{profile.bio}</p>}
@@ -124,12 +157,12 @@ export default function ProfilePage({ userId }) {
             <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{isOwn ? "Upload your first video" : "No videos yet"}</div>
           </div> :
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(3,1fr)", gap: isMobile ? 8 : 14 }}>
-            {videos.map(v => <VideoCard key={v.id} video={v} compact={isMobile}/>)}
+            {videos.map(v => <VideoCard key={v.id} video={v} compact={isMobile} />)}
           </div>
       )}
 
-      {editOpen && <EditModal profile={profile} onClose={() => setEditOpen(false)} onSave={p => { setProfile(p); setEditOpen(false); refreshProfile(); }}/>}
-      {showFollow && <Modal onClose={() => setShowFollow(null)} maxWidth={400}><h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16, fontFamily: "'Syne',sans-serif", color: C.text }}>{showFollow === "followers" ? "Followers" : "Following"}</h3><FollowList users={showFollow === "followers" ? followers : following}/></Modal>}
+      {editOpen && <EditModal profile={profile} onClose={() => setEditOpen(false)} onSave={p => { setProfile(p); setEditOpen(false); refreshProfile(); }} />}
+      {showFollow && <Modal onClose={() => setShowFollow(null)} maxWidth={400}><h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16, fontFamily: "'Syne',sans-serif", color: C.text }}>{showFollow === "followers" ? "Followers" : "Following"}</h3><FollowList users={showFollow === "followers" ? followers : following} /></Modal>}
     </div>
   );
 }
@@ -168,24 +201,24 @@ function EditModal({ profile, onClose, onSave }) {
       {/* Avatar */}
       <div style={{ textAlign: "center", marginBottom: 20 }}>
         <div style={{ position: "relative", display: "inline-block", marginBottom: 12 }}>
-          {avatarPrev && !form.avatarId ? <img src={avatarPrev} style={{ width: 80, height: 80, borderRadius: "50%", objectFit: "cover", border: `3px solid ${C.accent}` }}/> :
-           form.avatarId ? <div style={{ width: 80, height: 80, borderRadius: "50%", background: AVATARS.find(a => a.id === form.avatarId)?.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, border: `3px solid ${C.accent}` }}>{AVATARS.find(a => a.id === form.avatarId)?.emoji}</div> :
-           <Avatar profile={profile} size={80}/>}
+          {avatarPrev && !form.avatarId ? <img src={avatarPrev} style={{ width: 80, height: 80, borderRadius: "50%", objectFit: "cover", border: `3px solid ${C.accent}` }} /> :
+            form.avatarId ? <div style={{ width: 80, height: 80, borderRadius: "50%", background: AVATARS.find(a => a.id === form.avatarId)?.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, border: `3px solid ${C.accent}` }}>{AVATARS.find(a => a.id === form.avatarId)?.emoji}</div> :
+              <Avatar profile={profile} size={80} />}
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 10 }}>
           {AVATARS.slice(0, 8).map(av => <div key={av.id} onClick={() => { setForm(p => ({ ...p, avatarId: av.id })); setAvatarFile(null); setAvatarPrev(null); }} title={av.label} style={{ width: 36, height: 36, borderRadius: "50%", background: av.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, cursor: "pointer", border: `2px solid ${form.avatarId === av.id ? C.accent : "transparent"}`, transform: form.avatarId === av.id ? "scale(1.15)" : "scale(1)", transition: "all .2s" }}>{av.emoji}</div>)}
         </div>
         <label style={{ fontSize: 12, color: C.accent, cursor: "pointer", fontWeight: 600 }}>
           📷 Upload Photo
-          <input type="file" accept="image/*" onChange={e => { const f = e.target.files[0]; if (!f) return; setAvatarFile(f); setAvatarPrev(URL.createObjectURL(f)); setForm(p => ({ ...p, avatarId: "" })); }} style={{ display: "none" }}/>
+          <input type="file" accept="image/*" onChange={e => { const f = e.target.files[0]; if (!f) return; setAvatarFile(f); setAvatarPrev(URL.createObjectURL(f)); setForm(p => ({ ...p, avatarId: "" })); }} style={{ display: "none" }} />
         </label>
       </div>
-      <Input label="Display Name" icon="👤" value={form.display_name} onChange={e => setForm(p => ({ ...p, display_name: e.target.value }))} placeholder="Your name"/>
-      <Input label="Username" icon="@" value={form.username} onChange={e => { setForm(p => ({ ...p, username: e.target.value })); checkUser(e.target.value); }} placeholder="username" error={!usernameOk ? "Username taken" : undefined}/>
+      <Input label="Display Name" icon="👤" value={form.display_name} onChange={e => setForm(p => ({ ...p, display_name: e.target.value }))} placeholder="Your name" />
+      <Input label="Username" icon="@" value={form.username} onChange={e => { setForm(p => ({ ...p, username: e.target.value })); checkUser(e.target.value); }} placeholder="username" error={!usernameOk ? "Username taken" : undefined} />
       {form.username !== profile.username && usernameOk && <div style={{ fontSize: 11, color: C.green, marginTop: -12, marginBottom: 12 }}>✓ Available</div>}
       <div style={{ marginBottom: 20 }}>
         <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: .5 }}>Bio</label>
-        <textarea value={form.bio} onChange={e => setForm(p => ({ ...p, bio: e.target.value }))} placeholder="Tell people about yourself…" rows={3} style={{ width: "100%", background: C.bg3, border: `1.5px solid ${C.border}`, borderRadius: 10, color: C.text, fontFamily: "inherit", fontSize: 14, padding: "10px 12px", outline: "none", resize: "none" }}/>
+        <textarea value={form.bio} onChange={e => setForm(p => ({ ...p, bio: e.target.value }))} placeholder="Tell people about yourself…" rows={3} style={{ width: "100%", background: C.bg3, border: `1.5px solid ${C.border}`, borderRadius: 10, color: C.text, fontFamily: "inherit", fontSize: 14, padding: "10px 12px", outline: "none", resize: "none" }} />
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <Btn onClick={onClose} variant="secondary" style={{ flex: 1 }}>Cancel</Btn>
@@ -203,9 +236,9 @@ function FollowList({ users }) {
       {users.map(u => (
         <div key={u.id} onClick={() => setTab(`profile:${u.id}`)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: `1px solid ${C.border}`, cursor: "pointer", transition: "opacity .2s" }}
           onMouseEnter={e => e.currentTarget.style.opacity = ".7"} onMouseLeave={e => e.currentTarget.style.opacity = "1"}>
-          <Avatar profile={u} size={40}/>
+          <Avatar profile={u} size={40} />
           <div>
-            <div style={{ fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: C.text }}>{u.display_name || u.username}{u.is_verified && <VerifiedBadge size={13}/>}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, color: C.text }}>{u.display_name || u.username}{u.is_verified && <VerifiedBadge size={13} />}</div>
             <div style={{ fontSize: 11, color: C.muted }}>@{u.username}</div>
           </div>
         </div>
