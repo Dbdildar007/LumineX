@@ -4,20 +4,21 @@ import { supabase, authAPI, profileAPI, notifAPI } from "../lib/supabase";
 const Ctx = createContext(null);
 
 export function AppProvider({ children }) {
-  const [session,      setSession]      = useState(null);
-  const [profile,      setProfile]      = useState(null);
-  const [authReady,    setAuthReady]    = useState(false);
-  const [player,       setPlayer]       = useState(null);
-  const [search,       setSearch]       = useState(false);
-  const [toast,        setToast]        = useState(null);
-  const [tab,          setTab]          = useState("home");
-  const [authModal,    setAuthModal]    = useState(null);
-  const [vipModal,     setVipModal]     = useState(false);
-  const [uploadModal,  setUploadModal]  = useState(false);
-  const [notifOpen,    setNotifOpen]    = useState(false);
-  const [notifCount,   setNotifCount]   = useState(0);
-  const [theme,        setThemeState]   = useState(() => localStorage.getItem("lx_theme") || "dark");
+  const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [player, setPlayer] = useState(null);
+  const [search, setSearch] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [tab, setTab] = useState("home");
+  const [authModal, setAuthModal] = useState(null);
+  const [vipModal, setVipModal] = useState(false);
+  const [uploadModal, setUploadModal] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
+  const [theme, setThemeState] = useState(() => localStorage.getItem("lx_theme") || "dark");
   const toastTimer = useRef(null);
+  const [activeProfile, setActiveProfile] = useState(null);
 
   // Apply theme to document
   useEffect(() => {
@@ -51,7 +52,7 @@ export function AppProvider({ children }) {
   // Notification subscription
   useEffect(() => {
     if (!session?.user?.id) return;
-    notifAPI.getUnreadCount(session.user.id).then(setNotifCount).catch(() => {});
+    notifAPI.getUnreadCount(session.user.id).then(setNotifCount).catch(() => { });
     const sub = notifAPI.subscribe(session.user.id, () => {
       setNotifCount(c => c + 1);
     });
@@ -69,7 +70,7 @@ export function AppProvider({ children }) {
     }
   };
 
-  const showToast = useCallback((msg, type="info") => {
+  const showToast = useCallback((msg, type = "info") => {
     clearTimeout(toastTimer.current);
     setToast({ msg, type, id: Date.now() });
     toastTimer.current = setTimeout(() => setToast(null), 2800);
@@ -93,7 +94,7 @@ export function AppProvider({ children }) {
   return (
     <Ctx.Provider value={{
       session, profile, authReady,
-      player, setPlayer, playVideo,
+      player, setPlayer, playVideo,activeProfile,setActiveProfile,
       search, setSearch,
       toast, showToast,
       tab, setTab,
