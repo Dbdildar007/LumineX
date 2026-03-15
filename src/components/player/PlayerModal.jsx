@@ -7,6 +7,7 @@ import { DEMO_VIDEOS } from "../../data/theme";
 import CommentSection from "./CommentSection";
 import ControlsBar from "./ControlsBar";
 
+
 function SeekFlash({ seekFlash, arcProg }) {
   if (!seekFlash) return null;
   const C2 = 188.5;
@@ -16,8 +17,8 @@ function SeekFlash({ seekFlash, arcProg }) {
       {active && (
         <div style={{ position: "relative", width: 68, height: 68 }}>
           <svg width={68} height={68} style={{ transform: `rotate(-90deg)${side === "right" ? " scaleX(-1)" : ""}` }}>
-            <circle cx={34} cy={34} r={28} fill="none" stroke="rgba(255,255,255,.18)" strokeWidth={4}/>
-            <circle cx={34} cy={34} r={28} fill="none" stroke="white" strokeWidth={4} strokeLinecap="round" strokeDasharray={`${arc * (28 / 30)} ${C2 * (28 / 30)}`} style={{ transition: "stroke-dasharray .25s ease" }}/>
+            <circle cx={34} cy={34} r={28} fill="none" stroke="rgba(255,255,255,.18)" strokeWidth={4} />
+            <circle cx={34} cy={34} r={28} fill="none" stroke="white" strokeWidth={4} strokeLinecap="round" strokeDasharray={`${arc * (28 / 30)} ${C2 * (28 / 30)}`} style={{ transition: "stroke-dasharray .25s ease" }} />
           </svg>
           <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1 }}>
             <span style={{ fontSize: 17, lineHeight: 1 }}>{icon}</span>
@@ -29,8 +30,8 @@ function SeekFlash({ seekFlash, arcProg }) {
   );
   return (
     <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 20, animation: "fadeIn .12s" }}>
-      <Panel side="left" active={seekFlash === "bwd"} icon="⏪"/>
-      <Panel side="right" active={seekFlash === "fwd"} icon="⏩"/>
+      <Panel side="left" active={seekFlash === "bwd"} icon="⏪" />
+      <Panel side="right" active={seekFlash === "fwd"} icon="⏩" />
       {seekFlash === "2x" && (
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ background: "rgba(0,0,0,.82)", border: `2px solid ${C.accent}`, borderRadius: 14, padding: "12px 28px", fontSize: 22, fontWeight: 900, color: C.accent, letterSpacing: 3 }}>2× SPEED</div>
@@ -45,8 +46,8 @@ function AutoPlayCountdown({ seconds, onPlay, onCancel }) {
     <div style={{ position: "absolute", bottom: 70, right: 16, zIndex: 30, background: "rgba(0,0,0,.88)", border: `1px solid ${C.accent}44`, borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, animation: "fadeIn .3s ease" }}>
       <div style={{ position: "relative", width: 36, height: 36 }}>
         <svg width={36} height={36} style={{ transform: "rotate(-90deg)" }}>
-          <circle cx={18} cy={18} r={14} fill="none" stroke={C.border} strokeWidth={3}/>
-          <circle cx={18} cy={18} r={14} fill="none" stroke={C.accent} strokeWidth={3} strokeLinecap="round" strokeDasharray={`${(seconds / 5) * 87.96} 87.96`} style={{ transition: "stroke-dasharray 1s linear" }}/>
+          <circle cx={18} cy={18} r={14} fill="none" stroke={C.border} strokeWidth={3} />
+          <circle cx={18} cy={18} r={14} fill="none" stroke={C.accent} strokeWidth={3} strokeLinecap="round" strokeDasharray={`${(seconds / 5) * 87.96} 87.96`} style={{ transition: "stroke-dasharray 1s linear" }} />
         </svg>
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: C.accent }}>{seconds}</div>
       </div>
@@ -63,7 +64,8 @@ function AutoPlayCountdown({ seconds, onPlay, onCancel }) {
 }
 
 export default function PlayerModal({ video: initVideo, onClose }) {
-  const { session, profile, setAuthModal, showToast } = useApp();
+  const { session, profile, setAuthModal, showToast, setActiveProfile, setPlayer, setTab } = useApp();
+
   const isMobile = useIsMobile();
   const wrapRef = useRef(null);
   const vRef = useRef(null);
@@ -100,14 +102,14 @@ export default function PlayerModal({ video: initVideo, onClose }) {
   // Load related
   useEffect(() => {
     setRelated(DEMO_VIDEOS.filter(v => v.id !== video.id).slice(0, 12));
-    videoAPI.getFeed({ limit: 16 }).then(data => { if (data?.length) setRelated(data.filter(v => v.id !== video.id).slice(0, 12)); }).catch(() => {});
+    videoAPI.getFeed({ limit: 16 }).then(data => { if (data?.length) setRelated(data.filter(v => v.id !== video.id).slice(0, 12)); }).catch(() => { });
   }, [video.id]);
 
   // Video events
   useEffect(() => {
     const v = vRef.current; if (!v) return;
     setIsBuffering(true); setBuffered(0); setProg(0); setCurTime(0); setDur(0);
-    const tryPlay = () => v.play().then(() => setPlaying(true)).catch(() => {});
+    const tryPlay = () => v.play().then(() => setPlaying(true)).catch(() => { });
     if (v.readyState >= 2) tryPlay(); else v.addEventListener("canplay", tryPlay, { once: true });
     const upd = () => { setCurTime(v.currentTime); setDur(v.duration || 0); setProg(v.duration ? (v.currentTime / v.duration) * 100 : 0); };
     const onWaiting = () => setIsBuffering(true);
@@ -120,7 +122,7 @@ export default function PlayerModal({ video: initVideo, onClose }) {
     v.addEventListener("waiting", onWaiting); v.addEventListener("playing", onPlay2);
     v.addEventListener("seeking", onSeeking); v.addEventListener("seeked", onSeeked);
     v.addEventListener("progress", onProgress); v.addEventListener("ended", onEnded);
-    videoAPI.incrementViews(video.id).catch(() => {});
+    videoAPI.incrementViews(video.id).catch(() => { });
     return () => {
       v.removeEventListener("timeupdate", upd); v.removeEventListener("loadedmetadata", upd);
       v.removeEventListener("waiting", onWaiting); v.removeEventListener("playing", onPlay2);
@@ -152,7 +154,7 @@ export default function PlayerModal({ video: initVideo, onClose }) {
   const playRelated = useCallback(v => { cancelAuto(); setVideo(v); setProg(0); setCurTime(0); setDur(0); wrapRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, [cancelAuto]);
 
   const revealCtrl = useCallback(() => { setShowCtrl(true); clearTimeout(ctrlTimer.current); ctrlTimer.current = setTimeout(() => setShowCtrl(false), 3000); }, []);
-  const togglePlay = useCallback(() => { const v = vRef.current; if (!v) return; if (v.paused) { v.play().then(() => setPlaying(true)).catch(() => {}); revealCtrl(); } else { v.pause(); setPlaying(false); setShowCtrl(true); clearTimeout(ctrlTimer.current); } }, [revealCtrl]);
+  const togglePlay = useCallback(() => { const v = vRef.current; if (!v) return; if (v.paused) { v.play().then(() => setPlaying(true)).catch(() => { }); revealCtrl(); } else { v.pause(); setPlaying(false); setShowCtrl(true); clearTimeout(ctrlTimer.current); } }, [revealCtrl]);
   const seekBy = useCallback(secs => {
     const v = vRef.current; if (!v) return;
     v.currentTime = Math.max(0, Math.min(v.duration || 0, v.currentTime + secs));
@@ -164,12 +166,12 @@ export default function PlayerModal({ video: initVideo, onClose }) {
 
   const enterFS = useCallback(() => {
     const el = wrapRef.current; if (!el) return;
-    try { if (window.screen.orientation?.lock) window.screen.orientation.lock("landscape").catch(() => {}); } catch (e) {}
-    const req = el.requestFullscreen || el.webkitRequestFullscreen; if (req) req.call(el).catch(() => {});
+    try { if (window.screen.orientation?.lock) window.screen.orientation.lock("landscape").catch(() => { }); } catch (e) { }
+    const req = el.requestFullscreen || el.webkitRequestFullscreen; if (req) req.call(el).catch(() => { });
   }, []);
   const exitFS = useCallback(() => {
-    try { if (window.screen.orientation?.unlock) window.screen.orientation.unlock(); } catch (e) {}
-    const ex = document.exitFullscreen || document.webkitExitFullscreen; if (ex) ex.call(document).catch(() => {});
+    try { if (window.screen.orientation?.unlock) window.screen.orientation.unlock(); } catch (e) { }
+    const ex = document.exitFullscreen || document.webkitExitFullscreen; if (ex) ex.call(document).catch(() => { });
   }, []);
   const toggleFS = useCallback(() => { if (isFS) exitFS(); else enterFS(); revealCtrl(); }, [isFS, enterFS, exitFS, revealCtrl]);
 
@@ -205,7 +207,7 @@ export default function PlayerModal({ video: initVideo, onClose }) {
 
   const handleShare = async () => {
     const url = window.location.origin + "?v=" + video.id;
-    if (navigator.share) { await navigator.share({ title: video.title, url }).catch(() => {}); }
+    if (navigator.share) { await navigator.share({ title: video.title, url }).catch(() => { }); }
     else { navigator.clipboard.writeText(url); showToast("Link copied!", "success"); }
   };
   const handleDownload = () => {
@@ -231,12 +233,45 @@ export default function PlayerModal({ video: initVideo, onClose }) {
 
   const pf = video.profiles || {};
 
+
+  const handleProfileClick = (e) => {
+    if (e) e.stopPropagation();
+    // The user data comes from the current video being played
+    const pf = video?.user;
+    //if (!pf) return;
+    // 1. Close the player
+    if (onClose) onClose(); // Use the passed onClose prop
+    else setPlayer(null);   // Or the global setPlayer
+
+    // 2. Scroll to top
+    window.scrollTo(0, 0);
+
+    // 3. Set the active profile data for instant loading
+    setActiveProfile(pf);
+
+    // 4. Navigate to the profile tab
+    setTab(`profile`);
+  };
+
+  // Effect to manage scrolling on the body based on modal state
+  useEffect(() => {
+    if (video) {
+      document.body.style.overflow = "hidden"; // Prevent background scrolling when modal is open
+    } else {
+      document.body.style.overflow = "auto";
+    }
+    // Cleanup function to reset body overflow when component unmounts
+    return () => {
+      document.body.style.overflow = "auto";
+    };
+  }, [video]);
+
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: C.bg, overflowY: "auto", animation: "fadeIn .15s ease" }}>
       {/* Top bar */}
       <div style={{ position: "sticky", top: 0, zIndex: 100, background: "var(--headerBg)", backdropFilter: "blur(20px)", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 12, padding: isMobile ? "10px 12px" : "10px 20px", height: 52 }}>
         <button onClick={onClose} style={{ background: C.bg3, border: `1px solid ${C.border}`, borderRadius: "50%", width: 34, height: 34, color: C.text, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, zIndex: 9999, pointerEvents: "auto" }}>✕</button>
-        <AppIcon size={24}/>
+        <AppIcon size={24} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: C.text }}>{video.title}</div>
           <div style={{ fontSize: 11, color: C.muted }}>{pf.display_name || pf.username || ""}</div>
@@ -259,16 +294,16 @@ export default function PlayerModal({ video: initVideo, onClose }) {
               onTouchStart={isMobile ? handleTouchStart : undefined}
               onTouchEnd={isMobile ? handleTouchEnd : undefined}
               onTouchMove={isMobile ? () => clearTimeout(lpRef.current) : undefined}>
-              {captionLang !== "off" && video.caption_url && <track src={video.caption_url} kind="subtitles" label="English" default/>}
+              {captionLang !== "off" && video.caption_url && <track src={video.caption_url} kind="subtitles" label="English" default />}
             </video>
 
             {/* Buffering spinner */}
             {isBuffering && (
               <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 15, pointerEvents: "none" }}>
                 <div style={{ position: "relative", width: 64, height: 64, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "3px solid rgba(255,255,255,.1)" }}/>
-                  <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "3px solid transparent", borderTopColor: C.accent, borderRightColor: C.accent2, animation: "spin .8s linear infinite" }}/>
-                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: `linear-gradient(135deg,${C.accent},${C.accent2})`, boxShadow: `0 0 12px ${C.accent}` }}/>
+                  <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "3px solid rgba(255,255,255,.1)" }} />
+                  <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "3px solid transparent", borderTopColor: C.accent, borderRightColor: C.accent2, animation: "spin .8s linear infinite" }} />
+                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: `linear-gradient(135deg,${C.accent},${C.accent2})`, boxShadow: `0 0 12px ${C.accent}` }} />
                 </div>
               </div>
             )}
@@ -279,7 +314,7 @@ export default function PlayerModal({ video: initVideo, onClose }) {
               </div>
             )}
 
-            <SeekFlash seekFlash={seekFlash} arcProg={arcProg}/>
+            <SeekFlash seekFlash={seekFlash} arcProg={arcProg} />
             {is2x && <div style={{ position: "absolute", top: 14, right: 14, zIndex: 25, background: C.accent, color: "white", fontWeight: 800, fontSize: 12, padding: "4px 12px", borderRadius: 8 }}>2× SPEED</div>}
 
             {isMobile && showCtrl && !is2x && !seekFlash && (
@@ -295,26 +330,63 @@ export default function PlayerModal({ video: initVideo, onClose }) {
               </div>
             )}
 
-            {autoCountdown !== null && <AutoPlayCountdown seconds={autoCountdown} onPlay={playNext} onCancel={cancelAuto}/>}
-            <ControlsBar {...controlProps}/>
+            {autoCountdown !== null && <AutoPlayCountdown seconds={autoCountdown} onPlay={playNext} onCancel={cancelAuto} />}
+            <ControlsBar {...controlProps} />
           </div>
 
           {/* Info */}
           <div style={{ padding: isMobile ? "14px 12px" : "18px 20px" }}>
             <h1 style={{ fontSize: isMobile ? 16 : 21, fontWeight: 800, lineHeight: 1.35, marginBottom: 12, fontFamily: "'Syne',sans-serif", color: C.text }}>{video.title}</h1>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
-              <Avatar profile={pf} size={isMobile ? 34 : 42}/>
+            <div
+              onClick={handleProfileClick}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+                padding: "4px 8px",
+                marginLeft: "-8px", // Offsets padding to keep alignment
+                borderRadius: "8px"
+              }}
+              // Unified Hover Effect
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = 0.8;
+                // Optional: add a subtle background or underline the name
+                const nameSpan = e.currentTarget.querySelector('.profile-name-text');
+                if (nameSpan) nameSpan.style.textDecoration = 'underline';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = 1;
+                const nameSpan = e.currentTarget.querySelector('.profile-name-text');
+                if (nameSpan) nameSpan.style.textDecoration = 'none';
+              }}
+            >
+              <Avatar profile={pf} size={isMobile ? 34 : 42} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{pf.display_name || pf.username || video.channel}</span>
-                  {pf.is_verified && <VerifiedBadge/>}
+                  <span
+                    className="profile-name-text"
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: C.text,
+                      transition: "color 0.2s"
+                    }}
+                  >
+                    {pf.display_name || pf.username || video.channel}
+                  </span>
+                  {pf.is_verified && <VerifiedBadge />}
                 </div>
-                <div style={{ fontSize: 11, color: C.muted }}>{fmtNum(pf.followers_count || 0)} followers</div>
+
+                <div style={{ fontSize: 11, color: C.muted }}>
+                  {fmtNum(pf.followers_count || 0)} followers
+                </div>
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <span style={{ fontSize: 11, color: C.muted }}>👁 {fmtNum(video.views || 0)}</span>
                 <span style={{ fontSize: 11, color: C.muted }}>· {timeAgo(video.created_at)}</span>
-                {video.is_vip && <VipBadge/>}
+                {video.is_vip && <VipBadge />}
               </div>
             </div>
 
@@ -326,7 +398,7 @@ export default function PlayerModal({ video: initVideo, onClose }) {
                 { icon: "🔗", label: "Share", color: C.accent2, onClick: handleShare },
                 { icon: "📥", label: "Download", color: C.muted, onClick: handleDownload },
               ].map(btn => (
-                <ActionBtn key={btn.label} {...btn}/>
+                <ActionBtn key={btn.label} {...btn} />
               ))}
             </div>
 
@@ -334,7 +406,7 @@ export default function PlayerModal({ video: initVideo, onClose }) {
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, padding: "12px 14px", background: C.bg3, borderRadius: 10, border: `1px solid ${C.border}`, overflow: "hidden", maxHeight: descExpanded ? "none" : 64, position: "relative" }}>
                   {video.description}
-                  {!descExpanded && <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 32, background: `linear-gradient(transparent,${C.bg3})` }}/>}
+                  {!descExpanded && <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 32, background: `linear-gradient(transparent,${C.bg3})` }} />}
                 </div>
                 <span onClick={() => setDescExpanded(v => !v)} style={{ fontSize: 12, color: C.accent, cursor: "pointer", fontWeight: 600, marginTop: 4, display: "inline-block" }}>
                   {descExpanded ? "Show less ↑" : "Show more ↓"}
@@ -348,15 +420,15 @@ export default function PlayerModal({ video: initVideo, onClose }) {
               </div>
             )}
 
-            {isMobile && <div style={{ marginBottom: 24 }}><RelatedList videos={related} onPlay={playRelated} isMobile={true}/></div>}
-            <CommentSection videoId={video.id} videoOwnerId={pf.id}/>
+            {isMobile && <div style={{ marginBottom: 24 }}><RelatedList videos={related} onPlay={playRelated} isMobile={true} /></div>}
+            <CommentSection videoId={video.id} videoOwnerId={pf.id} />
           </div>
         </div>
 
         {/* RIGHT: related (desktop sticky) */}
         {!isMobile && (
           <div style={{ borderLeft: `1px solid ${C.border}`, height: "calc(100vh - 52px)", position: "sticky", top: 52, overflowY: "auto", scrollbarWidth: "none", padding: "16px 16px 24px" }}>
-            <RelatedList videos={related} onPlay={playRelated} isMobile={false}/>
+            <RelatedList videos={related} onPlay={playRelated} isMobile={false} />
           </div>
         )}
       </div>
@@ -381,7 +453,7 @@ function RelatedList({ videos, onPlay, isMobile }) {
         {!isMobile && <span style={{ fontSize: 10, color: C.muted, fontWeight: 500 }}>Press N for next</span>}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "1fr", gap: isMobile ? 10 : 4, marginTop: 8 }}>
-        {videos.map((v, idx) => <RelatedCard key={v.id} video={v} index={idx} onPlay={onPlay} isMobile={isMobile}/>)}
+        {videos.map((v, idx) => <RelatedCard key={v.id} video={v} index={idx} onPlay={onPlay} isMobile={isMobile} />)}
       </div>
     </>
   );
@@ -393,8 +465,8 @@ function RelatedCard({ video: v, index, onPlay, isMobile }) {
     <div onClick={() => onPlay(v)} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 0 : 10, padding: isMobile ? 0 : "8px 6px", borderRadius: 10, cursor: "pointer", background: hov ? C.bg3 : "transparent", transition: "background .2s", borderBottom: isMobile ? "none" : `1px solid ${C.border}22` }}>
       <div style={{ position: "relative", flexShrink: 0, width: isMobile ? "100%" : 120, aspectRatio: "16/9" }}>
-        <img src={v.thumbnail_url || `https://picsum.photos/640/360?random=${String(v.id).charCodeAt?.(0) || index + 1}`} alt={v.title} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: isMobile ? "10px 10px 0 0" : 8 }}/>
-        {v.is_vip && <div style={{ position: "absolute", top: 4, left: 4 }}><VipBadge small/></div>}
+        <img src={v.thumbnail_url || `https://picsum.photos/640/360?random=${String(v.id).charCodeAt?.(0) || index + 1}`} alt={v.title} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: isMobile ? "10px 10px 0 0" : 8 }} />
+        {v.is_vip && <div style={{ position: "absolute", top: 4, left: 4 }}><VipBadge small /></div>}
         {v.duration && <div style={{ position: "absolute", bottom: 4, right: 4, background: "rgba(0,0,0,.85)", color: "white", fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 4 }}>{v.duration}</div>}
         {index === 0 && <div style={{ position: "absolute", top: 4, right: 4, background: C.accent, color: "white", fontSize: 8, fontWeight: 800, padding: "2px 6px", borderRadius: 4, letterSpacing: .5 }}>NEXT</div>}
       </div>
