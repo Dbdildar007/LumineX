@@ -23,14 +23,14 @@ function CategoryCard({ cat, onClick }) {
         position: "relative", overflow: "hidden",
       }}>
       {/* Ripple */}
-      {ripple && <div style={{ position: "absolute", inset: 0, background: cat.color + "22", animation: "fadeIn .3s ease", borderRadius: 16 }}/>}
+      {ripple && <div style={{ position: "absolute", inset: 0, background: cat.color + "22", animation: "fadeIn .3s ease", borderRadius: 16 }} />}
       {/* Glow background on hover */}
-      {hov && <div style={{ position: "absolute", inset: 0, background: `radial-gradient(circle at 50% 40%,${cat.color}18 0%,transparent 70%)`, pointerEvents: "none" }}/>}
+      {hov && <div style={{ position: "absolute", inset: 0, background: `radial-gradient(circle at 50% 40%,${cat.color}18 0%,transparent 70%)`, pointerEvents: "none" }} />}
       <div style={{ fontSize: 32, marginBottom: 10, transition: "transform .3s", transform: hov ? "scale(1.2) rotate(-5deg)" : "scale(1)", display: "inline-block", position: "relative", zIndex: 1 }}>{cat.icon}</div>
       <div style={{ fontSize: 13, fontWeight: 700, color: hov ? cat.color : C.text, marginBottom: 3, transition: "color .3s", position: "relative", zIndex: 1 }}>{cat.name}</div>
       <div style={{ fontSize: 10, color: C.muted, position: "relative", zIndex: 1 }}>{cat.count} videos</div>
       {/* Animated bottom line */}
-      <div style={{ position: "absolute", bottom: 0, left: "50%", transform: `translateX(-50%) scaleX(${hov ? 1 : 0})`, width: "80%", height: 2, background: `linear-gradient(90deg,${cat.color},${cat.color}88)`, transition: "transform .3s ease", borderRadius: "99px 99px 0 0" }}/>
+      <div style={{ position: "absolute", bottom: 0, left: "50%", transform: `translateX(-50%) scaleX(${hov ? 1 : 0})`, width: "80%", height: 2, background: `linear-gradient(90deg,${cat.color},${cat.color}88)`, transition: "transform .3s ease", borderRadius: "99px 99px 0 0" }} />
     </div>
   );
 }
@@ -62,9 +62,20 @@ function HeroBanner() {
   useEffect(() => { const t = setInterval(() => setIdx(i => (i + 1) % heroes.length), 5000); return () => clearInterval(t); }, [heroes.length]);
   if (!item) return null;
   return (
-    <div style={{ position: "relative", borderRadius: isMobile ? 0 : 20, overflow: "hidden", marginBottom: 24, height: isMobile ? 220 : 320, background: C.bg3, marginLeft: isMobile ? -12 : 0, marginRight: isMobile ? -12 : 0 }}>
-      <img key={item.id} src={item.thumbnail_url} alt={item.title} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: .45, animation: "fadeIn .6s ease" }}/>
-      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(3,3,8,.95) 0%,rgba(3,3,8,.5) 60%,transparent 100%)" }}/>
+
+    <div style={{ position: "relative", willChange: "contents", borderRadius: isMobile ? 0 : 20, overflow: "hidden", marginBottom: 24, height: isMobile ? 220 : 320, background: C.bg3, marginLeft: isMobile ? -12 : 0, marginRight: isMobile ? -12 : 0 }}>
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          backgroundImage: `url(${item.thumbnail_url})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          opacity: 95,
+          transition: "background-image 1s ease-in-out, opacity 0.5s ease" // This creates the smooth swap
+        }}
+      />
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(3,3,8,.95) 0%,rgba(3,3,8,.5) 60%,transparent 100%)", transition: "all 0.5s ease" }} />
       <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: isMobile ? 16 : 32 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: C.accent, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>🔥 Featured</div>
         <h2 style={{ fontSize: isMobile ? 18 : 26, fontWeight: 900, lineHeight: 1.3, marginBottom: 8, maxWidth: 480, fontFamily: "'Syne',sans-serif", color: C.text }}>{item.title}</h2>
@@ -74,7 +85,7 @@ function HeroBanner() {
         </div>
       </div>
       <div style={{ position: "absolute", bottom: 14, right: 16, display: "flex", gap: 6 }}>
-        {heroes.map((_, i) => <div key={i} onClick={() => setIdx(i)} style={{ width: i === idx ? 24 : 6, height: 6, borderRadius: 99, background: i === idx ? C.accent : "rgba(255,255,255,.3)", cursor: "pointer", transition: "all .3s" }}/>)}
+        {heroes.map((_, i) => <div key={i} onClick={() => setIdx(i)} style={{ width: i === idx ? 24 : 6, height: 6, borderRadius: 99, background: i === idx ? C.accent : "rgba(255,255,255,.3)", cursor: "pointer", transition: "all .3s" }} />)}
       </div>
     </div>
   );
@@ -87,15 +98,15 @@ function VideoGrid({ videos, loading }) {
     <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(auto-fill,minmax(260px,1fr))", gap: isMobile ? 8 : 14 }}>
       {Array(6).fill(0).map((_, i) => (
         <div key={i}>
-          <Skeleton width="100%" height={0} style={{ aspectRatio: "16/9", marginBottom: 8, height: "unset" }}/>
-          <Skeleton width="60%" height={12} style={{ marginBottom: 6 }}/><Skeleton width="40%" height={10}/>
+          <Skeleton width="100%" height={0} style={{ aspectRatio: "16/9", marginBottom: 8, height: "unset" }} />
+          <Skeleton width="60%" height={12} style={{ marginBottom: 6 }} /><Skeleton width="40%" height={10} />
         </div>
       ))}
     </div>
   );
   return (
     <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(auto-fill,minmax(260px,1fr))", gap: isMobile ? 8 : 14 }}>
-      {videos.map(v => <VideoCard key={v.id} video={v}/>)}
+      {videos.map(v => <VideoCard key={v.id} video={v} />)}
     </div>
   );
 }
@@ -108,14 +119,22 @@ const FILTERS = [
 export default function HomePage({ tab }) {
   const { session, playVideo, setTab } = useApp();
   const isMobile = useIsMobile();
-  const [videos,    setVideos]    = useState([]);
-  const [trending,  setTrending]  = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [filter,    setFilter]    = useState("all");
+  const [videos, setVideos] = useState([]);
+  const [trending, setTrending] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("all");
   const [catFilter, setCatFilter] = useState(null);
-  const [page,      setPage]      = useState(0);
-  const [hasMore,   setHasMore]   = useState(true);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const LIMIT = 12;
+
+  useEffect(() => {
+    // This scrolls the window to the top-left corner
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth" // Optional: Change to "instant" if you want it to snap immediately
+    });
+  }, [tab, catFilter, filter]);
 
   const loadVideos = useCallback(async (reset = false) => {
     setLoading(true);
@@ -164,7 +183,7 @@ export default function HomePage({ tab }) {
 
   return (
     <div>
-      {tab === "home" && !catFilter && <HeroBanner/>}
+      {tab === "home" && !catFilter && <HeroBanner />}
 
       {/* Category filter active */}
       {catFilter && (
@@ -177,8 +196,8 @@ export default function HomePage({ tab }) {
       {/* Trending row */}
       {tab === "home" && !catFilter && trending.length > 0 && (
         <div style={{ marginBottom: 28 }}>
-          <SectionHeader title="🔥 Trending Now"/>
-          <HScroll>{trending.map(v => <VideoCard key={v.id} video={v} cardWidth={isMobile ? 200 : 260}/>)}</HScroll>
+          <SectionHeader title="🔥 Trending Now" />
+          <HScroll>{trending.map(v => <VideoCard key={v.id} video={v} cardWidth={isMobile ? 200 : 260} />)}</HScroll>
         </div>
       )}
 
@@ -187,10 +206,10 @@ export default function HomePage({ tab }) {
         <div style={{ marginBottom: 28 }}>
           <SectionHeader title="🏷 Browse Categories" action={() => setTab("categories")} actionLabel="All categories"/>
           {isMobile ? (
-            <MobileCategoryStrip onSelect={setCatFilter}/>
+            <MobileCategoryStrip onSelect={setCatFilter} />
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(110px,1fr))", gap: 10 }}>
-              {CATEGORIES.slice(0, 8).map(cat => <CategoryCard key={cat.name} cat={cat} onClick={() => setCatFilter(cat.name)}/>)}
+              {CATEGORIES.slice(0, 8).map(cat => <CategoryCard key={cat.name} cat={cat} onClick={() => setCatFilter(cat.name)} />)}
             </div>
           )}
         </div>
@@ -198,21 +217,21 @@ export default function HomePage({ tab }) {
 
       {/* Filter chips */}
       <div style={{ display: "flex", gap: 8, overflowX: "auto", scrollbarWidth: "none", marginBottom: 20, paddingBottom: 2 }}>
-        {FILTERS.map(f => <FilterChip key={f.value} label={f.label} active={filter === f.value} onClick={() => setFilter(f.value)}/>)}
+        {FILTERS.map(f => <FilterChip key={f.value} label={f.label} active={filter === f.value} onClick={() => setFilter(f.value)} />)}
       </div>
 
-      <SectionHeader title={tab === "trending" ? "🔥 Trending Videos" : tab === "new" ? "✨ New Releases" : tab === "saved" ? "❤️ Saved Videos" : catFilter ? `📂 ${catFilter}` : "🎬 All Videos"}/>
+      <SectionHeader title={tab === "trending" ? "🔥 Trending Videos" : tab === "new" ? "✨ New Releases" : tab === "saved" ? "❤️ Saved Videos" : catFilter ? `📂 ${catFilter}` : "🎬 All Videos"} />
 
       {!loading && displayed.length === 0 ? (
-        <EmptyState emoji={tab === "saved" ? "💔" : "🔍"} title={tab === "saved" ? "No saved videos" : "No videos found"} subtitle={tab === "saved" ? "Like a video to save it here" : "Try a different filter"}/>
+        <EmptyState emoji={tab === "saved" ? "💔" : "🔍"} title={tab === "saved" ? "No saved videos" : "No videos found"} subtitle={tab === "saved" ? "Like a video to save it here" : "Try a different filter"} />
       ) : (
         <>
-          <VideoGrid videos={displayed} loading={loading && videos.length === 0}/>
-          <div ref={sentinelRef} style={{ height: 40 }}/>
+          <VideoGrid videos={displayed} loading={loading && videos.length === 0} />
+          <div ref={sentinelRef} style={{ height: 40 }} />
           {loading && videos.length > 0 && (
             <div style={{ display: "flex", justifyContent: "center", padding: 20 }}>
               <div style={{ display: "flex", gap: 8 }}>
-                {[0, 1, 2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: C.accent, animation: `pulse 1.2s ${i * .2}s infinite` }}/>)}
+                {[0, 1, 2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: C.accent, animation: `pulse 1.2s ${i * .2}s infinite` }} />)}
               </div>
             </div>
           )}
