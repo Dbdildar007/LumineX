@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { C, Avatar, VipBadge, VerifiedBadge, fmtNum, timeAgo } from "./ui/index";
 import { useApp } from "../context/AppContext";
 import { useIsMobile, useVideoLike } from "../hooks/index";
-
+import { likeAPI } from "../lib/supabase";
 
 export default function VideoCard({ video, cardWidth, compact, showViews, showChannel = true }) {
   const { setTab, playVideo, setActiveProfile } = useApp();
@@ -18,33 +18,55 @@ export default function VideoCard({ video, cardWidth, compact, showViews, showCh
   const [lpProg, setLpProg] = useState(0);
   const [lpOn, setLpOn] = useState(false);
 
+
+
   const { liked, count: likeCount, toggle: toggleLike } = useVideoLike(video.id, false, video.likes_count);
 
-// Inside VideoCard.jsx
-const { session, showToast } = useApp();
-const [saved, setSaved] = useState(false);
+  // Inside VideoCard.jsx
+  const { session, showToast } = useApp();
+  const [saved, setSaved] = useState(false);
 
-// Add an effect to check if the video is already saved when the card loads
-useEffect(() => {
-  if (session?.user?.id) {
-    videoAPI.isSaved(session.user.id, video.id).then(setSaved);
-  }
-}, [video.id, session]);
+  // Add an effect to check if the video is already saved when the card loads
+  useEffect(() => {
+    if (session?.user?.id) {
+      likeAPI.isSaved(session.user.id, video.id).then(setSaved);
+    }
+  }, [video.id, session?.user?.id]);
 
-const handleSaveToggle = async (e) => {
-  e.stopPropagation();
-  if (!session) return showToast("Please login to save videos", "info");
+  const handleSaveToggle = async (e) => {
+    e.stopPropagation();
+    if (!session) return showToast("Please login to save videos", "info");
 
-  try {
-    // Call the function you just wrote
-    await videoAPI.toggleSave(session.user.id, video.id, saved);
-    setSaved(!saved);
-    showToast(saved ? "Removed from saved" : "Video saved!", "success");
-  } catch (err) {
-    showToast("Failed to update saved videos", "error");
-  }
-};
+    try {
+      const nextSavedState = !saved; // What the state will become
+      await likeAPI.toggleSave(session.user.id, video.id, saved);
 
+      // 1. Update local state
+      setSaved(nextSavedState);
+
+      // 2. ─── BROADCAST THE UPDATE ───
+      window.dispatchEvent(new CustomEvent('video_save_updated', {
+        detail: { videoId: video.id, isSaved: nextSavedState }
+      }));
+
+      showToast(nextSavedState ? "Video saved!" : "Removed from saved", "success");
+    } catch (err) {
+      showToast("Failed to update saved videos", "error");
+    }
+  };
+
+
+  // Add this inside your VideoCard component
+  useEffect(() => {
+    const handleGlobalSaveUpdate = (e) => {
+      if (e.detail.videoId === video.id) {
+        setSaved(e.detail.isSaved);
+      }
+    };
+
+    window.addEventListener('video_save_updated', handleGlobalSaveUpdate);
+    return () => window.removeEventListener('video_save_updated', handleGlobalSaveUpdate);
+  }, [video.id]);
 
 
   function play() {
@@ -162,8 +184,30 @@ const handleSaveToggle = async (e) => {
         <div style={{ position: "absolute", bottom: 8, right: 8, zIndex: 5, background: "rgba(0,0,0,.85)", color: "white", fontSize: 11, fontWeight: 700, padding: "2px 6px", borderRadius: 4 }}>{video.duration || ""}</div>
 
         {!compact && (
-          <button onClick={e => { e.stopPropagation(); toggleLike(); }} style={{ position: "absolute", top: 8, right: 8, zIndex: 5, background: "rgba(0,0,0,.7)", border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", opacity: hov || liked ? 1 : 0, transition: "opacity .2s,transform .2s", transform: liked ? "scale(1.2)" : "scale(1)" }}>
-            {liked ? "❤️" : "🤍"}
+          <button
+            onClick={e => { e.stopPropagation(); handleSaveToggle(e) }}
+            style={{
+              position: "absolute",
+              top: 8,
+              right: 8,
+              zIndex: 15,
+              background: "rgba(0,0,0,0.7)",
+              border: "none",
+              borderRadius: "50%",
+              width: 30,
+              height: 30,
+              cursor: "pointer",
+              fontSize: 14,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: hov || saved ? 1 : 0,
+              transition: "opacity .2s, transform .2s",
+              transform: saved ? "scale(1.2)" : "scale(1)",
+              color: saved ? C.accent : "white"
+            }}
+          >
+            {saved ? "🔖" : "📑"}
           </button>
         )}
 
