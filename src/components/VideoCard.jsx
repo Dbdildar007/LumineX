@@ -4,7 +4,7 @@ import { useApp } from "../context/AppContext";
 import { useIsMobile, useVideoLike } from "../hooks/index";
 
 
-export default function VideoCard({ video, cardWidth, compact, showChannel = true }) {
+export default function VideoCard({ video, cardWidth, compact, showViews, showChannel = true }) {
   const { setTab, playVideo, setActiveProfile } = useApp();
   const isMobile = useIsMobile();
   const vRef = useRef(null);
@@ -19,6 +19,31 @@ export default function VideoCard({ video, cardWidth, compact, showChannel = tru
   const [lpOn, setLpOn] = useState(false);
 
   const { liked, count: likeCount, toggle: toggleLike } = useVideoLike(video.id, false, video.likes_count);
+
+// Inside VideoCard.jsx
+const { session, showToast } = useApp();
+const [saved, setSaved] = useState(false);
+
+// Add an effect to check if the video is already saved when the card loads
+useEffect(() => {
+  if (session?.user?.id) {
+    videoAPI.isSaved(session.user.id, video.id).then(setSaved);
+  }
+}, [video.id, session]);
+
+const handleSaveToggle = async (e) => {
+  e.stopPropagation();
+  if (!session) return showToast("Please login to save videos", "info");
+
+  try {
+    // Call the function you just wrote
+    await videoAPI.toggleSave(session.user.id, video.id, saved);
+    setSaved(!saved);
+    showToast(saved ? "Removed from saved" : "Video saved!", "success");
+  } catch (err) {
+    showToast("Failed to update saved videos", "error");
+  }
+};
 
 
 
@@ -64,6 +89,22 @@ export default function VideoCard({ video, cardWidth, compact, showChannel = tru
     setActiveProfile(pf); // 'pf' is the user data from the card
     setTab(`profile:${pf.username}`);
   };
+
+
+  // ... after other hooks like useVideoLike ...
+  const [currentViews, setCurrentViews] = useState(video.views_count || video.views || 0);
+
+  useEffect(() => {
+    const handleUpdate = (e) => {
+      // If this specific video was just watched, update the count
+      if (e.detail.videoId === video.id) {
+        setCurrentViews(e.detail.views);
+      }
+    };
+
+    window.addEventListener('video_view_updated', handleUpdate);
+    return () => window.removeEventListener('video_view_updated', handleUpdate);
+  }, [video.id]);
 
   return (
     <div onClick={() => !lpOn && playVideo(video)} onMouseEnter={onEnter} onMouseLeave={onLeave}
@@ -129,6 +170,31 @@ export default function VideoCard({ video, cardWidth, compact, showChannel = tru
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: "rgba(255,255,255,.1)", zIndex: 6, opacity: active ? 1 : 0 }}>
           <div style={{ height: "100%", background: `linear-gradient(90deg,${C.accent},${C.accent2})`, width: `${prog}%`, transition: "width .12s linear" }} />
         </div>
+
+        {/* ─── Updated Condition to check for showViews AND isMobile ─── */}
+        {showViews && isMobile && (
+          <div style={{
+            position: 'absolute',
+            top: compact ? 4 : 8,
+            right: compact ? 4 : 42,
+            background: 'rgba(0, 0, 0, 0.7)',
+            backdropFilter: 'blur(8px)',
+            padding: '3px 8px',
+            borderRadius: 8,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            zIndex: 10,
+            border: '1px solid rgba(255,255,255,0.1)',
+            pointerEvents: 'none'
+          }}>
+
+            <span style={{ fontSize: 11, fontWeight: 800, color: '#fff' }}>
+              {fmtNum(currentViews)}
+            </span>
+          </div>
+        )}
+
       </div>
 
       {!compact && showChannel && (
