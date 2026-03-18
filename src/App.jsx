@@ -41,49 +41,46 @@ function AppInner() {
   if (splash) return <SplashScreen onDone={() => { setSplash(false); sessionStorage.setItem("lx_splash", "1"); }} />;
   if (!ageOk) return <AgeGate onEnter={() => { localStorage.setItem("lx_age", "1"); setAgeOk(true); }} />;
 
-  // 1. Check if it's the new Object format
+  // 1. Unified Profile Identification
   const isProfileObj = typeof tab === 'object' && tab?.type === 'profile';
-  const profileMatch = (typeof tab === 'string' && tab.startsWith("profile:")) ? tab.slice(8) : null;
-  const effectiveUserId = isProfileObj ? tab.id : profileMatch;
+
+  // Get ID from string "profile:id" OR from object { type: 'profile', id: '...' }
+  const activeUserId = isProfileObj
+    ? (tab.id || tab.userId)
+    : (typeof tab === 'string' && tab.startsWith("profile:"))
+      ? tab.split(":")[1]
+      : null;
+
   const profileData = isProfileObj ? tab.data : null;
+
 
   // 2. Category Logic (THIS IS THE MISSING PIECE)
   const catMatch = (typeof tab === 'string' && tab.startsWith("cat:")) ? tab.slice(4) : null;
-
-  console.log("Effective User ID:", effectiveUserId);
-  console.log("Category Match:", catMatch);
-
-  console.log("Effective User ID:", effectiveUserId); // This should no longer be null
-
 
   const mainTabs = ["home", "trending", "new", "saved", "history", "categories", "channels", "vip"];
 
   return (
     <div style={{
       background: "var(--bg)", color: "var(--text)", fontFamily: "'DM Sans',sans-serif",
-      display: "grid",
-      gridTemplateRows: "auto auto 1fr auto",
-      minHeight: "100vh",
-      width: "100%"
     }}>
       <Header />
       <NavTabs />
 
       <main style={{ maxWidth: 1400, margin: "0 auto", padding: isMobile ? "12px 12px 80px" : "24px 24px 40px", flex: "1 0 auto", width: "100%" }}>
-        {effectiveUserId && (
+        {activeUserId ? (
+          /* 1. PROFILE PAGE (Priority) */
           <ProfilePage
-            userId={effectiveUserId}
+            key={activeUserId} // Forces refresh when switching users
+            userId={activeUserId}
             passedData={profileData}
           />
-        )}
-
-        {/* Only show other pages if we are NOT on a profile */}
-        {!effectiveUserId && (
+        ) : (
+          /* 2. ALL OTHER TABS */
           <>
             {catMatch && <HomePage tab="home" />}
             {!catMatch && (
               <>
-                {(tab === "home" || tab === "trending" || tab === "new" || tab === "saved" || tab === "history") && <HomePage tab={tab} />}
+                {["home", "trending", "new", "saved", "history"].includes(tab) && <HomePage tab={tab} />}
                 {tab === "categories" && <CategoriesPage />}
                 {tab === "channels" && <ChannelsPage />}
                 {tab === "vip" && <VIPPage />}
