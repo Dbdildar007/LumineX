@@ -4,6 +4,8 @@ import { useApp } from "../../context/AppContext";
 import { commentAPI } from "../../lib/supabase";
 import { DUMMY_COMMENTS } from "../../data/theme";
 
+
+
 function LikeBtn({ liked, count, onToggle, small }) {
   const [bounce, setBounce] = useState(false);
   const h = () => { onToggle(); setBounce(true); setTimeout(() => setBounce(false), 300); };
@@ -22,24 +24,86 @@ function LikeBtn({ liked, count, onToggle, small }) {
   );
 }
 
+
+function nestComments(allComments) {
+  const map = {};
+  const roots = [];
+
+  // 1. Map everything first
+  allComments.forEach(c => {
+    map[c.id] = { ...c, replies: [] };
+  });
+
+  // 2. Link them
+  allComments.forEach(c => {
+    const parentId = c.parent_id || c.parentId;
+    if (parentId) {
+      // Find the "Root" parent (the one with no parent itself)
+      let root = map[parentId];
+      while (root && (root.parent_id || root.parentId)) {
+        root = map[root.parent_id || root.parentId];
+      }
+
+      if (root) {
+        root.replies.push(map[c.id]);
+      } else {
+        // Fallback: if root not found, treat as top level
+        roots.push(map[c.id]);
+      }
+    } else {
+      roots.push(map[c.id]);
+    }
+  });
+
+  // Sort replies by date so the thread flows naturally
+  roots.forEach(root => {
+    root.replies.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  });
+
+  return roots;
+}
+
 function CommentInput({ videoId, parentId, placeholder, compact, autoFocus, onSuccess, onCancel, videoOwnerId }) {
   const { session, setAuthModal, profile } = useApp();
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const ref = useRef(null);
+
   useEffect(() => { if (autoFocus) ref.current?.focus(); }, [autoFocus]);
 
   const submit = async () => {
     if (!session) { setAuthModal("login"); return; }
     if (!text.trim()) return;
     setLoading(true);
+
     try {
-      const data = await commentAPI.add({ videoId, userId: session.user.id, body: text.trim(), parentId, videoOwnerId });
-      setText(""); setFocused(false);
+      /**
+       * FIX: Extract the username from the placeholder.
+       * If the placeholder is "Reply to @username...", this splits by '@' 
+       * and removes the trailing dots.
+       */
+      const replyTo = parentId && placeholder?.includes('@')
+        ? placeholder.split('@')[1].replace('...', '').trim()
+        : null;
+
+      const data = await commentAPI.add({
+        videoId,
+        userId: session.user.id,
+        body: text.trim(),
+        parentId,
+        videoOwnerId,
+        reply_to_user: replyTo // Pass the extracted username to the API
+      });
+
+      setText("");
+      setFocused(false);
       onSuccess?.(data);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!session && !compact) return (
@@ -54,19 +118,70 @@ function CommentInput({ videoId, parentId, placeholder, compact, autoFocus, onSu
 
   return (
     <div style={{ display: "flex", gap: compact ? 8 : 10, alignItems: "flex-start" }}>
-      {!compact && session && <Avatar profile={profile || { username: session.user.email?.split("@")[0] || "?" }} size={36}/>}
+      {!compact && session && <Avatar profile={profile || { username: session.user.email?.split("@")[0] || "?" }} size={36} />}
       <div style={{ flex: 1 }}>
-        <textarea ref={ref} value={text} onChange={e => setText(e.target.value)}
-          onFocus={() => setFocused(true)} onBlur={() => { if (!text.trim()) setFocused(false); }}
-          onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) submit(); if (e.key === "Escape") { setText(""); onCancel?.(); } }}
-          placeholder={placeholder || "Add a comment…"} rows={focused ? 3 : 1}
-          style={{ width: "100%", background: C.bg3, border: `1.5px solid ${focused ? C.accent : C.border}`, borderRadius: 10, color: C.text, fontFamily: "inherit", fontSize: compact ? 12 : 13, padding: "10px 12px", outline: "none", resize: "none", transition: "all .2s", boxShadow: focused ? `0 0 0 3px ${C.accent}1a` : "none", lineHeight: 1.5 }}/>
+        <textarea
+          ref={ref}
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => { if (!text.trim()) setFocused(false); }}
+          onKeyDown={e => {
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) submit();
+            if (e.key === "Escape") { setText(""); onCancel?.(); }
+          }}
+          placeholder={placeholder || "Add a comment…"}
+          rows={focused ? 3 : 1}
+          style={{
+            width: "100%",
+            background: C.bg3,
+            border: `1.5px solid ${focused ? C.accent : C.border}`,
+            borderRadius: 10,
+            color: C.text,
+            fontFamily: "inherit",
+            fontSize: compact ? 12 : 13,
+            padding: "10px 12px",
+            outline: "none",
+            resize: "none",
+            transition: "all .2s",
+            boxShadow: focused ? `0 0 0 3px ${C.accent}1a` : "none",
+            lineHeight: 1.5
+          }}
+        />
         {(focused || text) && (
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8, alignItems: "center" }}>
             <span style={{ fontSize: 10, color: C.muted, marginRight: "auto" }}>Ctrl+Enter to post</span>
-            <button onClick={() => { setText(""); setFocused(false); onCancel?.(); }} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: "none", color: C.muted, fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>Cancel</button>
-            <button onClick={submit} disabled={!text.trim() || loading} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: text.trim() ? `linear-gradient(135deg,${C.accent},${C.accent2})` : C.bg3, color: text.trim() ? "white" : C.muted, fontSize: 12, cursor: text.trim() ? "pointer" : "not-allowed", fontFamily: "inherit", fontWeight: 700, transition: "all .2s", display: "flex", alignItems: "center", gap: 6 }}>
-              {loading ? <><div style={{ width: 12, height: 12, borderRadius: "50%", border: "2px solid white", borderTopColor: "transparent", animation: "spin .7s linear infinite" }}/> Posting...</> : "Post"}
+            <button
+              onClick={() => { setText(""); setFocused(false); onCancel?.(); }}
+              style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: "none", color: C.muted, fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={submit}
+              disabled={!text.trim() || loading}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 8,
+                border: "none",
+                background: text.trim() ? `linear-gradient(135deg,${C.accent},${C.accent2})` : C.bg3,
+                color: text.trim() ? "white" : C.muted,
+                fontSize: 12,
+                cursor: text.trim() ? "pointer" : "not-allowed",
+                fontFamily: "inherit",
+                fontWeight: 700,
+                transition: "all .2s",
+                display: "flex",
+                alignItems: "center",
+                gap: 6
+              }}
+            >
+              {loading ? (
+                <>
+                  <div style={{ width: 12, height: 12, borderRadius: "50%", border: "2px solid white", borderTopColor: "transparent", animation: "spin .7s linear infinite" }} />
+                  Posting...
+                </>
+              ) : "Post"}
             </button>
           </div>
         )}
@@ -76,54 +191,119 @@ function CommentInput({ videoId, parentId, placeholder, compact, autoFocus, onSu
 }
 
 function CommentItem({ comment, videoId, videoOwnerId, likedIds, onLikeToggle, onDelete, onNewComment, depth = 0 }) {
-  const { session } = useApp();
+  const { session, setActiveProfile, setTab,setPlayer,setIsPlaying } = useApp();
   const [replying, setReplying] = useState(false);
-  const [showReplies, setShowReplies] = useState(depth < 1);
-  const isLiked = likedIds.includes(comment.id);
-  const isOwn = session?.user?.id === comment.user_id;
+  const [showReplies, setShowReplies] = useState(false);
+
   const pf = comment.profiles || {};
-  const replies = comment.replies || [];
+  const isRoot = depth === 0;
+
+const handleProfileClick = (e, profileData) => {
+  e.preventDefault();
+  const identifier = profileData.username || profileData.id;
+  if (identifier) {
+    // This MUST match the startsWith("profile:") check in App.jsx
+    setTab(`profile:${identifier}`); 
+  }
+};
+
   return (
-    <div style={{ animation: "fadeUp .25s ease" }}>
-      <div style={{ display: "flex", gap: 10, padding: `${depth > 0 ? "10px" : "14px"} 0` }}>
-        <Avatar profile={pf} size={depth > 0 ? 28 : 34}/>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-            <span style={{ fontSize: depth > 0 ? 12 : 13, fontWeight: 700, color: C.text }}>{pf.display_name || pf.username}</span>
-            <span style={{ fontSize: 10, color: C.muted }}>{timeAgo(comment.created_at)}</span>
-            {isOwn && <button onClick={() => onDelete(comment.id)} style={{ marginLeft: "auto", background: "none", border: "none", color: C.red, fontSize: 10, cursor: "pointer", padding: "1px 6px", borderRadius: 4, border: `1px solid ${C.red}33` }}>Delete</button>}
+    <div style={{ marginBottom: isRoot ? 16 : 8, paddingLeft: isRoot ? 0 : 44 }}>
+
+ 
+      <div style={{ display: "flex", gap: 12, alignItems: 'flex-start' }}>
+        <Avatar profile={pf} size={isRoot ? 32 : 24} />
+
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, lineHeight: 1.4 }}>
+            <span style={{ fontWeight: 700, marginRight: 6, color: C.text, cursor: 'pointer' }} onClick={(e) => handleProfileClick(e, pf)}>
+              {pf.username}
+            </span>
+
+            {/* CLICKABLE MENTION */}
+            {comment.reply_to_user && (
+              <span
+                onClick={(e) => handleProfileClick(e, { username: comment.reply_to_user })}
+                style={{
+                  color: C.accent,
+                  fontWeight: 600,
+                  marginRight: 6,
+                  cursor: 'pointer',
+                  textDecoration: 'none'
+                }}
+                onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+              >
+                @{comment.reply_to_user}
+              </span>
+            )}
+
+            <span style={{ color: C.text }}>{comment.body}</span>
           </div>
-          <p style={{ fontSize: depth > 0 ? 12 : 13, color: C.text, lineHeight: 1.6, margin: "0 0 8px", wordBreak: "break-word" }}>{comment.body}</p>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <LikeBtn liked={isLiked} count={comment.likes_count} onToggle={() => onLikeToggle(comment.id, isLiked)} small={depth > 0}/>
-            <button onClick={() => setReplying(v => !v)} style={{ background: "none", border: "none", color: C.muted, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "3px 8px", borderRadius: 6, transition: "all .2s" }}
-              onMouseEnter={e => { e.currentTarget.style.background = C.bg3; e.currentTarget.style.color = C.text; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = C.muted; }}
-            >💬 Reply</button>
+
+          <div style={{ display: "flex", gap: 14, marginTop: 4, alignItems: "center", opacity: 0.8 }}>
+            <span style={{ fontSize: 11, color: C.muted }}>{timeAgo(comment.created_at)}</span>
+            {comment.likes_count > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>{comment.likes_count} likes</span>}
+            <button
+              onClick={() => setReplying(!replying)}
+              style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Reply
+            </button>
+            {session?.user?.id === comment.user_id && (
+              <button onClick={() => onDelete(comment.id)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, cursor: 'pointer' }}>Delete</button>
+            )}
           </div>
+
           {replying && (
             <div style={{ marginTop: 10 }}>
-              <CommentInput videoId={videoId} parentId={comment.id} videoOwnerId={videoOwnerId}
-                placeholder={`Reply to @${pf.username}…`} compact autoFocus
-                onSuccess={data => { setReplying(false); setShowReplies(true); onNewComment(data, comment.id); }}
-                onCancel={() => setReplying(false)}/>
+              <CommentInput
+                videoId={videoId}
+                parentId={comment.id}
+                placeholder={`Reply to @${pf.username}...`}
+                compact autoFocus
+                onSuccess={data => {
+                  setReplying(false);
+                  setShowReplies(true);
+                  // Ensure we pass the username for the mention
+                  onNewComment({ ...data, reply_to_user: pf.username }, comment.id);
+                }}
+              />
             </div>
           )}
-          {replies.length > 0 && (
-            <button onClick={() => setShowReplies(v => !v)} style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", color: C.accent, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: "6px 0", marginTop: 4 }}>
-              <span style={{ transform: showReplies ? "rotate(90deg)" : "none", transition: "transform .2s", fontSize: 9, display: "inline-block" }}>▶</span>
-              {showReplies ? "Hide" : "View"} {replies.length} {replies.length === 1 ? "reply" : "replies"}
-            </button>
-          )}
-          {showReplies && replies.length > 0 && (
-            <div style={{ paddingLeft: 16, borderLeft: `2px solid ${C.border}`, marginTop: 4 }}>
-              {replies.map(r => (
-                <CommentItem key={r.id} comment={r} videoId={videoId} videoOwnerId={videoOwnerId}
-                  likedIds={likedIds} onLikeToggle={onLikeToggle}
-                  onDelete={onDelete} onNewComment={onNewComment} depth={depth + 1}/>
-              ))}
+
+          {/* Rendering Replies logic remains the same... */}
+          {isRoot && comment.replies?.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              {!showReplies ? (
+                <button
+                  onClick={() => setShowReplies(true)}
+                  style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+                >
+                  <div style={{ width: 20, height: 1, background: C.border }} />
+                  View {comment.replies.length} replies
+                </button>
+              ) : (
+                <>
+                  {comment.replies.map(reply => (
+                    <CommentItem
+                      key={reply.id}
+                      comment={reply}
+                      depth={1}
+                      {...{ videoId, videoOwnerId, likedIds, onLikeToggle, onDelete, onNewComment }}
+                    />
+                  ))}
+                  <button onClick={() => setShowReplies(false)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, fontWeight: 600, marginTop: 4, cursor: 'pointer', paddingLeft: 44 }}>
+                    Hide replies
+                  </button>
+                </>
+              )}
             </div>
           )}
+        </div>
+
+        <div style={{ paddingTop: 4 }}>
+          <LikeBtn liked={likedIds.includes(comment.id)} onToggle={() => onLikeToggle(comment.id, likedIds.includes(comment.id))} small />
         </div>
       </div>
     </div>
@@ -145,25 +325,37 @@ export default function CommentSection({ videoId, videoOwnerId }) {
     setLoading(false);
   }, [videoId]);
 
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const data = await commentAPI.getForVideo(videoId);
-      // Merge with dummy comments for demo
-      const allIds = new Set(data.map(c => c.id));
-      const dummies = DUMMY_COMMENTS.filter(c => !allIds.has(c.id)).map(c => ({ ...c, video_id: videoId }));
-      const merged = [...data, ...dummies];
-      setComments(merged);
-      if (session) {
-        const allCommentIds = merged.flatMap(c => [c.id, ...(c.replies || []).flatMap(r => [r.id, ...(r.replies || []).map(rr => rr.id)])]);
-        if (allCommentIds.length) {
-          const liked = await commentAPI.getLikedIds(session.user.id, allCommentIds);
-          setLikedIds(liked);
-        }
+
+
+
+      // 1. Convert the flat database array into a tree structure
+      const nestedData = nestComments(data);
+
+      // 2. Filter dummies
+      const dbIds = new Set(data.map(c => c.id));
+      const dummies = DUMMY_COMMENTS
+        .filter(c => !dbIds.has(c.id))
+        .map(c => ({ ...c, video_id: videoId }));
+
+      // 3. Update state with the merged tree
+      setComments([...nestedData, ...dummies]);
+
+      if (session && data.length > 0) {
+        const allCommentIds = data.map(c => c.id);
+        const liked = await commentAPI.getLikedIds(session.user.id, allCommentIds);
+        setLikedIds(liked);
       }
-    } catch {
+    } catch (e) {
+      console.error("Load error:", e);
       loadDummy();
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }, [videoId, session, loadDummy]);
 
   useEffect(() => { load(); }, [load]);
@@ -220,9 +412,9 @@ export default function CommentSection({ videoId, videoOwnerId }) {
         </div>
       </div>
       <div style={{ marginBottom: 24 }}>
-        <CommentInput videoId={videoId} videoOwnerId={videoOwnerId} onSuccess={data => handleNewComment(data)}/>
+        <CommentInput videoId={videoId} videoOwnerId={videoOwnerId} onSuccess={data => handleNewComment(data)} />
       </div>
-      {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner/></div>
+      {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner /></div>
         : displayed.length === 0 ? (
           <div style={{ textAlign: "center", padding: "40px 20px", color: C.muted }}>
             <div style={{ fontSize: 40, marginBottom: 10 }}>💬</div>
@@ -231,7 +423,7 @@ export default function CommentSection({ videoId, videoOwnerId }) {
           </div>
         ) : (
           <>
-            <div>{displayed.map(c => <CommentItem key={c.id} comment={c} videoId={videoId} videoOwnerId={videoOwnerId} likedIds={likedIds} onLikeToggle={handleLike} onDelete={handleDelete} onNewComment={handleNewComment}/>)}</div>
+            <div>{displayed.map(c => <CommentItem key={c.id} comment={c} videoId={videoId} videoOwnerId={videoOwnerId} likedIds={likedIds} onLikeToggle={handleLike} onDelete={handleDelete} onNewComment={handleNewComment} />)}</div>
             <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "center" }}>
               {showCount < comments.length && <button onClick={() => setShowCount(n => n + 6)} style={{ padding: "9px 22px", borderRadius: 99, border: `1px solid ${C.border}`, background: C.bg3, color: C.text, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all .2s" }} onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.color = C.accent; }} onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.text; }}>Load more ↓</button>}
               {showCount > 8 && <button onClick={() => setShowCount(8)} style={{ padding: "9px 22px", borderRadius: 99, border: `1px solid ${C.border}`, background: "none", color: C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Show less ↑</button>}
@@ -254,8 +446,10 @@ function removeComment(comments, id) {
 }
 function addReply(comments, parentId, reply) {
   return comments.map(c => {
-    if (c.id === parentId) return { ...c, replies: [...(c.replies || []), { ...reply, replies: [] }] };
-    if (c.replies?.length) return { ...c, replies: addReply(c.replies, parentId, reply) };
+    // If the comment IS the top-level parent, or the comment contains the reply chain
+    if (c.id === parentId || (c.replies && c.replies.some(r => r.id === parentId))) {
+      return { ...c, replies: [...(c.replies || []), { ...reply, replies: [] }] };
+    }
     return c;
   });
 }
