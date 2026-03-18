@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { C, Avatar, VipBadge, VerifiedBadge, fmtNum, fmtTime, timeAgo, AppIcon } from "../ui/index";
 import { useApp } from "../../context/AppContext";
 import { useIsMobile, useVideoLike } from "../../hooks/index";
-import { videoAPI, likeAPI } from "../../lib/supabase";
+import { videoAPI, historyAPI, likeAPI } from "../../lib/supabase";
 import { DEMO_VIDEOS } from "../../data/theme";
 import CommentSection from "./CommentSection";
 import ControlsBar from "./ControlsBar";
@@ -161,6 +161,17 @@ export default function PlayerModal({ video: initVideo, onClose }) {
 
     return () => clearTimeout(timer);
   }, [playing, video.id]);
+
+useEffect(() => {
+  if (session?.user?.id && video?.id) {
+    // Optional: Only trigger after 5 seconds of watching
+    const timer = setTimeout(() => {
+      historyAPI.addToHistory(session.user.id, video.id);
+    }, 4000); 
+    
+    return () => clearTimeout(timer);
+  }
+}, [video.id, session?.user?.id]);
 
 
 
