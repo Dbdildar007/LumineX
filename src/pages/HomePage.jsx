@@ -94,18 +94,30 @@ function HeroBanner() {
 // ── Video grid with skeleton ─────────────────────────────────────────────────
 function VideoGrid({ videos, loading }) {
   const isMobile = useIsMobile();
+
+  const gridStyle = {
+    display: "grid",
+    gridTemplateColumns: isMobile
+      ? "repeat(2, 1fr)"                          // 2 cols on mobile
+      : "repeat(auto-fill, minmax(260px, 1fr))",  // fluid on desktop
+    gap: isMobile ? 10 : 14,
+    padding: isMobile ? "0 2px" : 0,             // slight side breathing room
+  };
+
   if (loading) return (
-    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(auto-fill,minmax(260px,1fr))", gap: isMobile ? 8 : 14 }}>
+    <div style={gridStyle}>
       {Array(6).fill(0).map((_, i) => (
         <div key={i}>
           <Skeleton width="100%" height={0} style={{ aspectRatio: "16/9", marginBottom: 8, height: "unset" }} />
-          <Skeleton width="60%" height={12} style={{ marginBottom: 6 }} /><Skeleton width="40%" height={10} />
+          <Skeleton width="60%" height={12} style={{ marginBottom: 6 }} />
+          <Skeleton width="40%" height={10} />
         </div>
       ))}
     </div>
   );
+
   return (
-    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(auto-fill,minmax(260px,1fr))", gap: isMobile ? 8 : 14 }}>
+    <div style={gridStyle}>
       {videos.map(v => <VideoCard key={v.id} video={v} />)}
     </div>
   );
@@ -126,7 +138,7 @@ export default function HomePage({ tab }) {
   const [catFilter, setCatFilter] = useState(null);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
-  const LIMIT = 12;
+  const LIMIT = 10;
 
   useEffect(() => {
     // This scrolls the window to the top-left corner
@@ -136,31 +148,95 @@ export default function HomePage({ tab }) {
     });
   }, [tab, catFilter, filter]);
 
-  const loadVideos = useCallback(async (reset = false) => {
-    setLoading(true);
-    try {
-      const nextPage = reset ? 0 : page;
+
+  // --- Place this BEFORE loadVideos ---
+  useEffect(() => {
+    const handleUpdate = (e) => {
+      const { videoId, views } = e.detail;
+
+      // A helper function to update views in any list of videos
+      const updateFn = (list) =>
+        list.map(v => v.id === videoId ? { ...v, views_count: views } : v);
+
+      // Update both states without triggering a full page reload
+      setVideos(prev => updateFn(prev));
+      setTrending(prev => updateFn(prev));
+    };
+
+    window.addEventListener('video_view_updated', handleUpdate);
+    return () => window.removeEventListener('video_view_updated', handleUpdate);
+  }, []); // Empty dependency array means this listener is set up only once
+
+  useEffect(() => {
+    const handleUpdate = (e) => {
+      const { videoId, views } = e.detail;
+
+      const updateFn = (list) => list.map(v =>
+        v.id === videoId ? { ...v, views: views } : v
+      );
+
+      setVideos(prev => updateFn(prev));
+      setTrending(prev => updateFn(prev));
+    };
+
+    window.addEventListener('video_view_updated', handleUpdate);
+    return () => window.removeEventListener('video_view_updated', handleUpdate);
+  }, []);
+
+  
+const loadVideos = useCallback(async (reset = false) => {
+  setLoading(true);
+  try {
+    const nextPage = reset ? 0 : page;
+    let data;
+
+    // 1. Fetch data based on the active tab
+    if (tab === "saved") {
+      if (!session?.user?.id) {
+        setVideos([]);
+        return;
+      }
+      data = await videoAPI.getSaved(session.user.id);
+    } 
+    else if (tab === "trending") {
+      data = await videoAPI.getTrending(LIMIT).catch(() => DEMO_VIDEOS.slice(0, LIMIT));
+    } 
+    else {
+      // Home / Following Logic
       let followingIds = null;
       if (session?.user?.id && tab === "home") {
         followingIds = await followAPI.getFollowingIds(session.user.id).catch(() => null);
       }
-      let data;
-      if (tab === "trending") {
-        data = await videoAPI.getTrending(LIMIT).catch(() => DEMO_VIDEOS.slice(0, LIMIT));
-      } else {
-        data = await videoAPI.getFeed({ page: nextPage, limit: LIMIT, followingIds: followingIds?.length ? followingIds : null }).catch(() => DEMO_VIDEOS.slice(nextPage * LIMIT, (nextPage + 1) * LIMIT));
-      }
-      const filtered = (data || DEMO_VIDEOS).filter(v => {
-        if (catFilter) return v.category === catFilter;
-        return true;
-      });
-      if (reset) setVideos(filtered);
-      else setVideos(p => [...p, ...filtered]);
-      setHasMore(filtered.length === LIMIT);
-      if (!reset) setPage(p => p + 1);
-    } catch { if (reset) setVideos(DEMO_VIDEOS); }
-    finally { setLoading(false); }
-  }, [tab, page, session, catFilter]);
+      data = await videoAPI.getFeed({ 
+        page: nextPage, 
+        limit: LIMIT, 
+        followingIds: followingIds?.length ? followingIds : null 
+      }).catch(() => DEMO_VIDEOS.slice(nextPage * LIMIT, (nextPage + 1) * LIMIT));
+    }
+
+    // 2. Apply category filters
+    const filtered = (data || []).filter(v => {
+      if (catFilter) return v.category === catFilter;
+      return true;
+    });
+
+    // 3. Update the Video state
+    if (reset) setVideos(filtered);
+    else setVideos(p => [...p, ...filtered]);
+
+    // 4. Update pagination info
+    setHasMore(tab === "saved" ? false : (data?.length === LIMIT));
+    if (!reset) setPage(p => p + 1);
+
+  } catch (err) {
+    console.error("Load error:", err);
+    if (reset) setVideos(DEMO_VIDEOS);
+  } finally {
+    setLoading(false);
+  }
+}, [tab, page, session, catFilter]);
+
+
 
   useEffect(() => {
     setPage(0); setHasMore(true); loadVideos(true);
@@ -197,14 +273,14 @@ export default function HomePage({ tab }) {
       {tab === "home" && !catFilter && trending.length > 0 && (
         <div style={{ marginBottom: 28 }}>
           <SectionHeader title="🔥 Trending Now" />
-          <HScroll>{trending.map(v => <VideoCard key={v.id} video={v} cardWidth={isMobile ? 200 : 260} />)}</HScroll>
+          <HScroll hideArrows={isMobile} >{trending.map(v => <VideoCard key={v.id} video={v} cardWidth={isMobile ? 200 : 260} />)}</HScroll>
         </div>
       )}
 
       {/* Categories */}
       {tab === "home" && !catFilter && (
         <div style={{ marginBottom: 28 }}>
-          <SectionHeader title="🏷 Browse Categories" action={() => setTab("categories")} actionLabel="All categories"/>
+          <SectionHeader title="🏷 Browse Categories" action={() => setTab("categories")} actionLabel="All categories" />
           {isMobile ? (
             <MobileCategoryStrip onSelect={setCatFilter} />
           ) : (
@@ -227,11 +303,40 @@ export default function HomePage({ tab }) {
       ) : (
         <>
           <VideoGrid videos={displayed} loading={loading && videos.length === 0} />
-          <div ref={sentinelRef} style={{ height: 40 }} />
+          {/* Load More Button */}
+          {hasMore && !loading && (
+            <div style={{ display: "flex", justifyContent: "center", padding: "28px 16px" }}>
+              <button
+                onClick={loadMore}
+                style={{
+                  padding: isMobile ? "12px 28px" : "13px 40px",
+                  borderRadius: 999,
+                  background: `linear-gradient(135deg,${C.accent},${C.accent2})`,
+                  border: "none",
+                  color: "white",
+                  fontFamily: "inherit",
+                  fontSize: isMobile ? 13 : 14,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  letterSpacing: 0.5,
+                  boxShadow: `0 4px 20px ${C.accent}44`,
+                  transition: "transform .2s, box-shadow .2s",
+                }}
+                onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
+                onMouseLeave={e => e.currentTarget.style.transform = "none"}
+              >
+                Load More Videos
+              </button>
+            </div>
+          )}
+
+          {/* Loading spinner (only while loading next batch) */}
           {loading && videos.length > 0 && (
             <div style={{ display: "flex", justifyContent: "center", padding: 20 }}>
               <div style={{ display: "flex", gap: 8 }}>
-                {[0, 1, 2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: C.accent, animation: `pulse 1.2s ${i * .2}s infinite` }} />)}
+                {[0, 1, 2].map(i => (
+                  <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: C.accent, animation: `pulse 1.2s ${i * .2}s infinite` }} />
+                ))}
               </div>
             </div>
           )}
