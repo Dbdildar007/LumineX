@@ -76,7 +76,11 @@ export default function PlayerModal({ video: initVideo, onClose }) {
   const flashTimer = useRef(null);
   const autoTimer = useRef(null);
 
-  const [video, setVideo] = useState(initVideo);
+  const [video, setVideo] = useState({
+    ...initVideo,
+    views: Number(initVideo.views) || 0
+  });
+  //const [video, setVideo] = useState(initVideo);
   const [related, setRelated] = useState([]);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -97,13 +101,68 @@ export default function PlayerModal({ video: initVideo, onClose }) {
   const [buffered, setBuffered] = useState(0);
   const [descExpanded, setDescExpanded] = useState(false);
 
+
+
+  const [displayLimit, setDisplayLimit] = useState(4);
   const { liked, count: likeCount, toggle: toggleLike } = useVideoLike(video.id, false, video.likes_count);
 
   // Load related
   useEffect(() => {
-    setRelated(DEMO_VIDEOS.filter(v => v.id !== video.id).slice(0, 12));
-    videoAPI.getFeed({ limit: 16 }).then(data => { if (data?.length) setRelated(data.filter(v => v.id !== video.id).slice(0, 12)); }).catch(() => { });
+    setDisplayLimit(4);
+    setRelated(DEMO_VIDEOS.filter(v => v.id !== video.id));
+    videoAPI.getFeed({ limit: 100 })
+      .then(data => {
+        if (data?.length) {
+          setRelated(data.filter(v => v.id !== video.id));
+        }
+      })
+      .catch(() => { });
   }, [video.id]);
+
+
+
+
+  // Inside PlayerModal function
+  const viewIncremented = useRef(false);
+
+  useEffect(() => {
+    // Reset tracker when video ID changes
+    viewIncremented.current = false;
+  }, [video.id]);
+
+  useEffect(() => {
+    if (!playing || viewIncremented.current) return;
+
+    // ... existing code ...
+    const timer = setTimeout(async () => {
+      try {
+        // 1. Call the API
+        const newViewCount = await videoAPI.incrementViews(video.id);
+
+        // 2. Update Local State immediately for real-time feel
+        setVideo(prev => ({
+          ...prev,
+          views: newViewCount
+        }));
+
+        // ─── ADD THE NEW CODE HERE (Line 147 approx) ───
+        window.dispatchEvent(new CustomEvent('video_view_updated', {
+          detail: { videoId: video.id, views: newViewCount }
+        }));
+        // ──────────────────────────────────────────────
+
+        viewIncremented.current = true;
+        console.log("View recorded!");
+      } catch (err) {
+        console.error("Failed to increment view:", err);
+      }
+    }, 3000);
+    // ... rest of code ...
+
+    return () => clearTimeout(timer);
+  }, [playing, video.id]);
+
+
 
   // Video events
   useEffect(() => {
@@ -122,7 +181,8 @@ export default function PlayerModal({ video: initVideo, onClose }) {
     v.addEventListener("waiting", onWaiting); v.addEventListener("playing", onPlay2);
     v.addEventListener("seeking", onSeeking); v.addEventListener("seeked", onSeeked);
     v.addEventListener("progress", onProgress); v.addEventListener("ended", onEnded);
-    videoAPI.incrementViews(video.id).catch(() => { });
+    // Inside PlayerModal.jsx
+
     return () => {
       v.removeEventListener("timeupdate", upd); v.removeEventListener("loadedmetadata", upd);
       v.removeEventListener("waiting", onWaiting); v.removeEventListener("playing", onPlay2);
@@ -319,7 +379,11 @@ export default function PlayerModal({ video: initVideo, onClose }) {
 
             {isMobile && showCtrl && !is2x && !seekFlash && (
               <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", pointerEvents: "none", zIndex: 8 }}>
-                {[{ icon: "⏪", l: "10s" }, {}, { icon: "⏩", l: "10s" }].map((item, i) => (
+                {[
+                  { icon: "↺", l: "10" },
+                  {},
+                  { icon: "↻", l: "10" }
+                ].map((item, i) => (
                   <div key={i} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {item.icon && <div style={{ background: "rgba(0,0,0,.45)", borderRadius: 40, width: 46, height: 46, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", border: "1px solid rgba(255,255,255,.14)" }}>
                       <span style={{ fontSize: 14 }}>{item.icon}</span>
@@ -383,8 +447,13 @@ export default function PlayerModal({ video: initVideo, onClose }) {
                   {fmtNum(pf.followers_count || 0)} followers
                 </div>
               </div>
+              {/* Inside the profile/info section of your PlayerModal JSX */}
+              {/* Inside the profile/info section */}
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <span style={{ fontSize: 11, color: C.muted }}>👁 {fmtNum(video.views || 0)}</span>
+                <span style={{ fontSize: 11, color: C.muted }}>
+                  {/* This will now update in real-time when the state changes */}
+                  👁 {fmtNum(video.views)}
+                </span>
                 <span style={{ fontSize: 11, color: C.muted }}>· {timeAgo(video.created_at)}</span>
                 {video.is_vip && <VipBadge />}
               </div>
@@ -420,7 +489,16 @@ export default function PlayerModal({ video: initVideo, onClose }) {
               </div>
             )}
 
-            {isMobile && <div style={{ marginBottom: 24 }}><RelatedList videos={related} onPlay={playRelated} isMobile={true} /></div>}
+            {isMobile && <div style={{ marginBottom: 24 }}><RelatedList videos={related.slice(0, displayLimit)} onPlay={playRelated} isMobile={true} />
+              {related.length > displayLimit && (
+                <button
+                  onClick={() => setDisplayLimit(prev => prev + 20)}
+                  style={loadMoreButtonStyle}
+                >
+                  Show More Videos
+                </button>
+              )}
+            </div>}
             <CommentSection videoId={video.id} videoOwnerId={pf.id} />
           </div>
         </div>
@@ -428,7 +506,27 @@ export default function PlayerModal({ video: initVideo, onClose }) {
         {/* RIGHT: related (desktop sticky) */}
         {!isMobile && (
           <div style={{ borderLeft: `1px solid ${C.border}`, height: "calc(100vh - 52px)", position: "sticky", top: 52, overflowY: "auto", scrollbarWidth: "none", padding: "16px 16px 24px" }}>
-            <RelatedList videos={related} onPlay={playRelated} isMobile={false} />
+            <RelatedList videos={related.slice(0, displayLimit)} onPlay={playRelated} isMobile={false} />
+            {related.length > displayLimit && (
+              <button
+                onClick={() => setDisplayLimit(prev => prev + 20)}
+                style={loadMoreButtonStyle}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
+                  e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.4)";
+                }}
+
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0) scale(1)";
+                  e.currentTarget.style.boxShadow = "0 4px 15px rgba(0,0,0,0.3)";
+                }}
+
+                onMouseDown={(e) => e.currentTarget.style.transform = "scale(0.97)"}
+                onMouseUp={(e) => e.currentTarget.style.transform = "scale(1.02)"}
+              >
+                Show More Videos
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -478,3 +576,26 @@ function RelatedCard({ video: v, index, onPlay, isMobile }) {
     </div>
   );
 }
+
+const loadMoreButtonStyle = {
+  width: "100%",
+  padding: "14px 0",
+  marginTop: "20px",
+  // A sleek gradient using your theme's accent colors
+  background: `linear-gradient(135deg, ${C.accent}, ${C.accent2 || C.accent + 'dd'})`,
+  border: "none",
+  borderRadius: "14px",
+  color: "white",
+  fontSize: "14px",
+  fontWeight: "800",
+  textTransform: "uppercase",
+  letterSpacing: "1px",
+  cursor: "pointer",
+  boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
+  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+  fontFamily: "inherit",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  outline: "none",
+};
