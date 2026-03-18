@@ -20,6 +20,7 @@ export function AppProvider({ children }) {
   const toastTimer = useRef(null);
   const [activeProfile, setActiveProfile] = useState(null);
 
+
   // Apply theme to document
   useEffect(() => {
     const root = document.documentElement;
@@ -70,11 +71,29 @@ export function AppProvider({ children }) {
     }
   };
 
-  const showToast = useCallback((msg, type = "info") => {
+    const showToast = useCallback((msg, type = "info") => {
     clearTimeout(toastTimer.current);
     setToast({ msg, type, id: Date.now() });
     toastTimer.current = setTimeout(() => setToast(null), 2800);
   }, []);
+
+
+
+useEffect(() => {
+  // This listener is the "bridge" between your phone and laptop
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    console.log("Auth Event:", event); // Debug to see the magic happen
+    setSession(session);
+
+    // If a session appears (from phone verification) or user signs in
+    if (session && (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION')) {
+      setAuthModal(null); // This will close the modal on your laptop!
+    }
+  });
+
+  return () => subscription.unsubscribe();
+}, []);
+
 
   const playVideo = useCallback((video) => {
     if (video.is_vip && !profile?.is_vip) { setVipModal(true); return; }
@@ -96,8 +115,8 @@ export function AppProvider({ children }) {
       session, profile, authReady,
       player, setPlayer, playVideo,activeProfile,setActiveProfile,
       search, setSearch,
-      toast, showToast,
-      tab, setTab,
+      toast, showToast,setTab,
+      tab,
       authModal, setAuthModal,
       vipModal, setVipModal,
       uploadModal, setUploadModal,
