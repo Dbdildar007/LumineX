@@ -5,42 +5,42 @@ import { useIsMobile } from "../../hooks/index";
 
 const LINKS = {
   Platform: [
-    { label: "Home",         tab: "home" },
-    { label: "Trending",     tab: "trending" },
-    { label: "Categories",   tab: "categories" },
-    { label: "Channels",     tab: "channels" },
-    { label: "VIP Access",   tab: "vip" },
+    { label: "Home", tab: "home" },
+    { label: "Trending", tab: "trending" },
+    { label: "Categories", tab: "categories" },
+    { label: "Channels", tab: "channels" },
+    { label: "VIP Access", tab: "vip" },
   ],
   Account: [
-    { label: "Sign Up",      auth: "signup" },
-    { label: "Login",        auth: "login" },
-    { label: "My Profile",   profile: true },
+    { label: "Sign Up", auth: "signup" },
+    { label: "Login", auth: "login" },
+    { label: "My Profile", profile: true },
     { label: "Upload Video", upload: true },
     { label: "Saved Videos", tab: "saved" },
   ],
   Legal: [
-    { label: "Privacy Policy",    href: "#" },
-    { label: "Terms of Service",  href: "#" },
-    { label: "Cookie Policy",     href: "#" },
-    { label: "DMCA",              href: "#" },
-    { label: "18 U.S.C. § 2257",  href: "#" },
+    { label: "Privacy Policy", href: "#" },
+    { label: "Terms of Service", href: "#" },
+    { label: "Cookie Policy", href: "#" },
+    { label: "DMCA", href: "#" },
+    { label: "18 U.S.C. § 2257", href: "#" },
   ],
   Support: [
-    { label: "Help Center",       href: "#" },
-    { label: "Contact Us",        href: "#" },
-    { label: "Report Content",    href: "#" },
-    { label: "Advertise",         href: "#" },
-    { label: "Become a Creator",  href: "#" },
+    { label: "Help Center", href: "#" },
+    { label: "Contact Us", href: "#" },
+    { label: "Report Content", href: "#" },
+    { label: "Advertise", href: "#" },
+    { label: "Become a Creator", href: "#" },
   ],
 };
 
 const SOCIALS = [
-  { icon: "𝕏",  label: "Twitter / X",  href: "#", color: "#e7e9ea" },
-  { icon: "f",  label: "Facebook",      href: "#", color: "#1877F2" },
-  { icon: "in", label: "Instagram",     href: "#", color: "#E1306C" },
-  { icon: "▶",  label: "YouTube",       href: "#", color: "#FF0000" },
-  { icon: "t",  label: "TikTok",        href: "#", color: "#69C9D0" },
-  { icon: "d",  label: "Discord",       href: "#", color: "#5865F2" },
+  { icon: "𝕏", label: "Twitter / X", href: "#", color: "#e7e9ea" },
+  { icon: "f", label: "Facebook", href: "#", color: "#1877F2" },
+  { icon: "in", label: "Instagram", href: "#", color: "#E1306C" },
+  { icon: "▶", label: "YouTube", href: "#", color: "#FF0000" },
+  { icon: "t", label: "TikTok", href: "#", color: "#69C9D0" },
+  { icon: "d", label: "Discord", href: "#", color: "#5865F2" },
 ];
 
 const BADGES = [
@@ -53,14 +53,14 @@ const BADGES = [
 export default function Footer() {
   const { setTab, setAuthModal, profile, session, setUploadModal } = useApp();
   const isMobile = useIsMobile();
-  const [email,     setEmail]     = useState("");
-  const [subDone,   setSubDone]   = useState(false);
+  const [email, setEmail] = useState("");
+  const [subDone, setSubDone] = useState(false);
   const [hovSocial, setHovSocial] = useState(null);
 
   const handleLink = (item) => {
-    if (item.tab)     setTab(item.tab);
-    if (item.auth)    setAuthModal(item.auth);
-    if (item.upload)  setUploadModal(true);
+    if (item.tab) setTab(item.tab);
+    if (item.auth) setAuthModal(item.auth);
+    if (item.upload) setUploadModal(true);
     if (item.profile && session && profile) setTab(`profile:${profile.id}`);
     else if (item.profile && !session) setAuthModal("login");
   };
@@ -73,6 +73,8 @@ export default function Footer() {
     setTimeout(() => setSubDone(false), 4000);
   };
 
+
+
   return (
     <footer style={{
       background: `linear-gradient(180deg, ${C.bg2} 0%, ${C.bg} 100%)`,
@@ -82,7 +84,7 @@ export default function Footer() {
     }}>
 
       {/* ── Top accent line ── */}
-      <div style={{ height: 3, background: `linear-gradient(90deg, ${C.accent}, ${C.accent2}, ${C.accent3}, ${C.accent})`, backgroundSize: "200% 100%", animation: "gradShift 4s ease infinite" }}/>
+      <div style={{ height: 3, background: `linear-gradient(90deg, ${C.accent}, ${C.accent2}, ${C.accent3}, ${C.accent})`, backgroundSize: "200% 100%", animation: "gradShift 4s ease infinite" }} />
 
       {/* ── Newsletter banner ── */}
       <div style={{
@@ -138,8 +140,8 @@ export default function Footer() {
           {/* Brand column */}
           <div style={{ gridColumn: isMobile ? "1 / -1" : "auto" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-              <AppIcon size={36}/>
-              <Logo size={22}/>
+              <AppIcon size={36} />
+              <Logo size={22} />
             </div>
             <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.8, marginBottom: 20, maxWidth: 240 }}>
               The next-generation video streaming platform. Discover, share, and enjoy premium content from creators worldwide.
@@ -187,25 +189,47 @@ export default function Footer() {
               <div style={{ fontSize: 11, fontWeight: 800, color: C.accent, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 14 }}>
                 {group}
               </div>
+
               <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 9 }}>
-                {items.map(item => (
-                  <li key={item.label}>
-                    {item.href ? (
-                      <a href={item.href} style={{ fontSize: 13, color: C.muted, textDecoration: "none", transition: "color .15s", display: "inline-block" }}
-                        onMouseEnter={e => e.currentTarget.style.color = C.text}
-                        onMouseLeave={e => e.currentTarget.style.color = C.muted}>
-                        {item.label}
-                      </a>
-                    ) : (
-                      <span onClick={() => handleLink(item)} style={{ fontSize: 13, color: C.muted, cursor: "pointer", transition: "color .15s", display: "inline-block" }}
-                        onMouseEnter={e => e.currentTarget.style.color = C.text}
-                        onMouseLeave={e => e.currentTarget.style.color = C.muted}>
-                        {item.label}
-                      </span>
-                    )}
-                  </li>
-                ))}
+                {items.map(item => {
+                  // 1. Check if the item is Login or Sign Up AND a session exists
+                  const isDisabled = (item.label === "Login" || item.label === "Sign Up") && session;
+
+                  return (
+                    <li key={item.label}>
+                      {item.href ? (
+                        <a href={item.href} style={{ fontSize: 13, color: C.muted, textDecoration: "none", transition: "color .15s", display: "inline-block" }}
+                          onMouseEnter={e => e.currentTarget.style.color = C.text}
+                          onMouseLeave={e => e.currentTarget.style.color = C.muted}>
+                          {item.label}
+                        </a>
+                      ) : (
+                        <span
+                          // 2. Disable click logic
+                          onClick={() => !isDisabled && handleLink(item)}
+                          style={{
+                            fontSize: 13,
+                            // 3. Conditional styling for both Login and Sign Up
+                            color: isDisabled ? C.border : C.muted,
+                            cursor: isDisabled ? "not-allowed" : "pointer",
+                            transition: "color .15s",
+                            display: "inline-block",
+                            opacity: isDisabled ? 0.5 : 1
+                          }}
+                          onMouseEnter={e => {
+                            if (!isDisabled) e.currentTarget.style.color = C.text;
+                          }}
+                          onMouseLeave={e => {
+                            if (!isDisabled) e.currentTarget.style.color = C.muted;
+                          }}>
+                          {item.label}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
+
             </div>
           ))}
         </div>
@@ -213,13 +237,13 @@ export default function Footer() {
 
       {/* ── Divider ── */}
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 40px" }}>
-        <div style={{ height: 1, background: `linear-gradient(90deg, transparent, ${C.border}, transparent)` }}/>
+        <div style={{ height: 1, background: `linear-gradient(90deg, transparent, ${C.border}, transparent)` }} />
       </div>
 
       {/* ── Bottom bar ── */}
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: isMobile ? "20px 16px" : "22px 40px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.7 }}>
-          © {new Date().getFullYear()} LumineX. All rights reserved.<br/>
+          © {new Date().getFullYear()} LumineX. All rights reserved.<br />
           <span style={{ fontSize: 11 }}>
             All content on this site is for adults 18+.{" "}
             <a href="#" style={{ color: C.accent, textDecoration: "none" }}>18 U.S.C. § 2257 Statement</a>
@@ -237,7 +261,7 @@ export default function Footer() {
           }}>18+</div>
 
           {/* App stores (decorative) */}
-          
+
         </div>
       </div>
 
