@@ -281,15 +281,27 @@ export const likeAPI = {
     cache.del(`video:${videoId}`);
   },
 
-  async isSaved(userId, videoId) {
+async isSaved(userId, videoId) {
     if (!userId) return false;
+    // 1. Check Cache first
+    const k = `save:${userId}:${videoId}`;
+    const c = cache.get(k);
+    if (c !== null) return c;
+
     const { data } = await supabase.from("saved_videos").select("id").eq("user_id", userId).eq("video_id", videoId).maybeSingle();
-    return !!data;
+    
+    // 2. Set Cache
+    return cache.set(k, !!data, TTL.short);
   },
 
   async toggleSave(userId, videoId, isSaved) {
-    if (isSaved) await supabase.from("saved_videos").delete().eq("user_id", userId).eq("video_id", videoId);
-    else await supabase.from("saved_videos").insert({ user_id: userId, video_id: videoId });
+    if (isSaved) {
+      await supabase.from("saved_videos").delete().eq("user_id", userId).eq("video_id", videoId);
+    } else {
+      await supabase.from("saved_videos").insert({ user_id: userId, video_id: videoId });
+    }
+    // 3. Clear Cache on change
+    cache.del(`save:${userId}:${videoId}`);
   },
 
   async getSaved(userId) {
@@ -436,4 +448,54 @@ export const vipAPI = {
     cache.bust(`profile:${userId}`);
     return data;
   },
+};
+
+// ── History API ─────────────────────────────────────────────────────────────
+export const historyAPI = {
+  async addToHistory(userId, videoId) {
+    if (!userId || !videoId) return;
+    const { error } = await supabase
+      .from("watch_history")
+      .upsert(
+        { 
+          user_id: userId, 
+          video_id: videoId, 
+          watched_at: new Date().toISOString() 
+        },
+        { onConflict: 'user_id, video_id' } 
+      );
+    if (error) console.error("Error updating history:", error.message);
+  },
+
+  async getHistory(userId) {
+    if (!userId) return [];
+    const { data, error } = await supabase
+      .from("watch_history")
+      .select(`
+        id,
+        watched_at,
+        video:video_id (
+          id, title, thumbnail_url, video_url, views, category, duration
+        )
+      `)
+      .eq("user_id", userId)
+      .order("watched_at", { ascending: false });
+
+    if (error) return [];
+    return data.map(item => ({
+      ...item.video,
+      watched_at: item.watched_at,
+      historyId: item.id
+    }));
+  },
+
+  // NEW: Pure database delete function
+  async deleteHistoryItem(historyId) {
+    return await supabase.from("watch_history").delete().eq("id", historyId);
+  },
+
+  // NEW: Pure database clear function
+  async clearAllHistory(userId) {
+    return await supabase.from("watch_history").delete().eq("user_id", userId);
+  }
 };
