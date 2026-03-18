@@ -23,49 +23,53 @@ export default function ProfilePage({ userId, passedData }) {
   const [showFollow, setShowFollow] = useState(null);
 
 
-  // Determine if this is the logged-in user's own profile
-  const isOwn = session?.user?.id === userId || (myProfile && myProfile.username === userId);
-
-
+const isOwn = session?.user?.id === userId || 
+              (myProfile && (myProfile.username === userId || myProfile.id === userId));
 
   const { following: isFollowing, toggle: toggleFollow, loading: followLoading } = useFollow(userId, initFollowing, profile, setProfile);
 
-  const load = useCallback(async () => {
-    // 3. Only show loading spinner if we don't even have passedData
-    if (!profile) setLoading(true);
 
-    try {
-      const [p, v] = await Promise.all([
-        profileAPI.getById(userId),
-        videoAPI.getFeed({ userId, limit: 24 })
-      ]);
 
+const load = useCallback(async () => {
+  try {
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId);
+    const p = isUUID ? await profileAPI.getById(userId) : await profileAPI.getByUsername(userId);
+
+    if (p) {
       setProfile(p);
+      const [v, followingStatus] = await Promise.all([
+        videoAPI.getFeed({ userId: p.id, limit: 24 }),
+        session && session.user.id !== p.id ? followAPI.isFollowing(session.user.id, p.id) : Promise.resolve(false)
+      ]);
       setVideos(v || []);
-
-      if (session && !isOwn) {
-        const followingStatus = await followAPI.isFollowing(session.user.id, userId).catch(() => false);
-        setInitFollowing(followingStatus);
-      }
-    } catch (e) {
-      console.error("Error loading profile:", e);
-    } finally {
-      setLoading(false);
+      setInitFollowing(followingStatus);
     }
-  }, [userId, session, isOwn, profile]);
+  } catch (e) {
+    console.error("Load error:", e);
+  } finally {
+    setLoading(false); // Only stop loading once everything is set
+  }
+}, [userId, session]);
 
-  useEffect(() => {
-    // 4. Update local state if props change (crucial for navigating between profiles)
-    if (passedData) {
-      setProfile(passedData);
-    } else if (isOwn && myProfile) {
-      setProfile(myProfile);
-    } else if (activeProfile && activeProfile.username === userId) {
-      setProfile(activeProfile);
-    }
+ 
+useEffect(() => {
+  setLoading(true);
+  setVideos([]);
 
-    load();
-  }, [userId, load, passedData, activeProfile, myProfile, isOwn]);
+  // 2. Immediate Sync Logic
+  if (passedData) {
+    setProfile(passedData);
+  } else if (isOwn && myProfile) {
+    // This handles opening "My Profile" instantly
+    setProfile(myProfile);
+  } else if (activeProfile && (activeProfile.username === userId || activeProfile.id === userId)) {
+    setProfile(activeProfile);
+  } else {
+    setProfile(null);
+  }
+
+  load();
+}, [userId, load, passedData, isOwn, myProfile, activeProfile]);
 
   useEffect(() => {
     followAPI.getFollowers(userId).then(setFollowers).catch(() => { });
@@ -157,7 +161,7 @@ export default function ProfilePage({ userId, passedData }) {
             <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{isOwn ? "Upload your first video" : "No videos yet"}</div>
           </div> :
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(3,1fr)", gap: isMobile ? 8 : 14 }}>
-            {videos.map(v => <VideoCard key={v.id} video={v} compact={isMobile} />)}
+            {videos.map(v => <VideoCard key={v.id} video={v} compact={isMobile} showViews={true} />)}
           </div>
       )}
 
